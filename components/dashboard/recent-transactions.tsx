@@ -16,14 +16,13 @@ export function RecentTransactions({ transactions }: RecentTransactionsProps) {
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg">
             <History className="h-5 w-5 text-primary" />
-            Ibyakozwe Vuba (Recent Transactions)
+            Recent Transactions
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-center py-8">
             <History className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-50" />
-            <p className="text-muted-foreground">Nta byakozwe bihari</p>
-            <p className="text-sm text-muted-foreground">No transactions yet</p>
+            <p className="text-muted-foreground">No transactions yet</p>
           </div>
         </CardContent>
       </Card>
@@ -35,11 +34,11 @@ export function RecentTransactions({ transactions }: RecentTransactionsProps) {
       <CardHeader className="pb-3 flex flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-2 text-lg">
           <History className="h-5 w-5 text-primary" />
-          Ibyakozwe Vuba (Recent Transactions)
+          Recent Transactions
         </CardTitle>
         <Link href="/dashboard/reports">
           <Button variant="ghost" size="sm">
-            Reba Byose
+            View All
           </Button>
         </Link>
       </CardHeader>
@@ -48,11 +47,11 @@ export function RecentTransactions({ transactions }: RecentTransactionsProps) {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
-                <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">Ubwoko</th>
-                <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">Igicuruzwa</th>
-                <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">Umubare</th>
-                <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">Igiciro</th>
-                <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">Itariki</th>
+                <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">Type</th>
+                <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">Product</th>
+                <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">Quantity</th>
+                <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">Price</th>
+                <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">Date</th>
               </tr>
             </thead>
             <tbody>

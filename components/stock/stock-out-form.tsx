@@ -56,7 +56,7 @@ export function StockOutForm({ products }: StockOutFormProps) {
     } = await supabase.auth.getUser()
 
     if (!user) {
-      setError("Ntabwo winjiye mu konti")
+      setError("You are not logged in")
       setIsLoading(false)
       return
     }
@@ -120,9 +120,9 @@ export function StockOutForm({ products }: StockOutFormProps) {
         <CardContent className="py-12">
           <div className="text-center">
             <Beer className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <h3 className="text-lg font-semibold text-foreground mb-2">Nta bicuruzwa bihari</h3>
-            <p className="text-muted-foreground mb-4">Tangira wongereho ibicuruzwa mbere yo kugurisha</p>
-            <Button onClick={() => router.push("/dashboard/products")}>Ongeraho Igicuruzwa</Button>
+            <h3 className="text-lg font-semibold text-foreground mb-2">No products available</h3>
+            <p className="text-muted-foreground mb-4">Add products first before recording stock out</p>
+            <Button onClick={() => router.push("/dashboard/products")}>Add Product</Button>
           </div>
         </CardContent>
       </Card>
@@ -132,8 +132,8 @@ export function StockOutForm({ products }: StockOutFormProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Andika Ibisohotse</CardTitle>
-        <CardDescription>Gurisha igicuruzwa - cash cyangwa ideni</CardDescription>
+        <CardTitle>Record Stock Out</CardTitle>
+        <CardDescription>Sell product - cash or credit</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -149,7 +149,7 @@ export function StockOutForm({ products }: StockOutFormProps) {
               }}
             >
               <SelectTrigger id="product-out" className="h-12">
-                <SelectValue placeholder="Hitamo igicuruzwa" />
+                <SelectValue placeholder="Select product" />
               </SelectTrigger>
               <SelectContent>
                 {products.map((product) => (
@@ -161,7 +161,7 @@ export function StockOutForm({ products }: StockOutFormProps) {
                       >
                         (Stock: {product.quantity})
                       </span>
-                      {product.quantity === 0 && <span className="text-xs text-destructive">(Birabuze)</span>}
+                      {product.quantity === 0 && <span className="text-xs text-destructive">(Out of stock)</span>}
                     </div>
                   </SelectItem>
                 ))}
@@ -170,7 +170,7 @@ export function StockOutForm({ products }: StockOutFormProps) {
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="quantity-out">Umubare *</Label>
+            <Label htmlFor="quantity-out">Quantity *</Label>
             <Input
               id="quantity-out"
               type="number"
@@ -185,7 +185,7 @@ export function StockOutForm({ products }: StockOutFormProps) {
             {isInsufficientStock && (
               <p className="text-xs text-destructive flex items-center gap-1">
                 <AlertTriangle className="h-3 w-3" />
-                Stock isigaye: {selectedProduct?.quantity}
+                Insufficient stock: {selectedProduct?.quantity} available
               </p>
             )}
           </div>
@@ -193,11 +193,11 @@ export function StockOutForm({ products }: StockOutFormProps) {
           {formData.quantity && selectedProduct && !isInsufficientStock && (
             <div className="bg-secondary/50 rounded-lg p-4">
               <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Igiciro:</span>
-                <span className="font-medium">{selectedProduct.price.toLocaleString()} RWF / kimwe</span>
+                <span className="text-muted-foreground">Price:</span>
+                <span className="font-medium">{selectedProduct.price.toLocaleString()} RWF / unit</span>
               </div>
               <div className="flex justify-between items-center mt-2">
-                <span className="text-muted-foreground">Igiteranyo:</span>
+                <span className="text-muted-foreground">Total:</span>
                 <span className="text-xl font-bold text-foreground">{totalAmount.toLocaleString()} RWF</span>
               </div>
             </div>
@@ -205,7 +205,7 @@ export function StockOutForm({ products }: StockOutFormProps) {
 
           {/* Payment Type */}
           <div className="grid gap-3">
-            <Label>Uburyo bwo Kwishyura *</Label>
+            <Label>Payment Method *</Label>
             <RadioGroup
               value={formData.payment_type}
               onValueChange={(value: "CASH" | "CREDIT") => setFormData({ ...formData, payment_type: value })}
@@ -222,8 +222,8 @@ export function StockOutForm({ products }: StockOutFormProps) {
                 <RadioGroupItem value="CASH" id="cash" />
                 <Banknote className="h-5 w-5 text-success" />
                 <div>
-                  <p className="font-medium">Amafaranga</p>
-                  <p className="text-xs text-muted-foreground">Cash</p>
+                  <p className="font-medium">Cash</p>
+                  <p className="text-xs text-muted-foreground">Cash payment</p>
                 </div>
               </Label>
               <Label
@@ -237,8 +237,8 @@ export function StockOutForm({ products }: StockOutFormProps) {
                 <RadioGroupItem value="CREDIT" id="credit" />
                 <CreditCard className="h-5 w-5 text-warning" />
                 <div>
-                  <p className="font-medium">Ideni</p>
-                  <p className="text-xs text-muted-foreground">Credit</p>
+                  <p className="font-medium">Credit</p>
+                  <p className="text-xs text-muted-foreground">Credit sale</p>
                 </div>
               </Label>
             </RadioGroup>
@@ -249,13 +249,13 @@ export function StockOutForm({ products }: StockOutFormProps) {
             <div className="space-y-4 p-4 rounded-xl bg-warning/5 border border-warning/20">
               <h4 className="font-medium text-foreground flex items-center gap-2">
                 <CreditCard className="h-4 w-4 text-warning" />
-                Amakuru y'Umukiriya
+                Customer Information
               </h4>
               <div className="grid gap-2">
-                <Label htmlFor="customer_name">Izina ry'Umukiriya *</Label>
+                <Label htmlFor="customer_name">Customer Name *</Label>
                 <Input
                   id="customer_name"
-                  placeholder="Jean Claude"
+                  placeholder="John Doe"
                   value={formData.customer_name}
                   onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
                   required={formData.payment_type === "CREDIT"}
@@ -266,10 +266,10 @@ export function StockOutForm({ products }: StockOutFormProps) {
           )}
 
           <div className="grid gap-2">
-            <Label htmlFor="notes-out">Icyitonderwa</Label>
+            <Label htmlFor="notes-out">Notes</Label>
             <Textarea
               id="notes-out"
-              placeholder="Icyitonderwa cyangwa amakuru y'inyongera..."
+              placeholder="Optional notes..."
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
             />
@@ -284,8 +284,8 @@ export function StockOutForm({ products }: StockOutFormProps) {
           {success && (
             <div className="bg-success/10 border border-success/30 rounded-lg p-3">
               <p className="text-sm text-success">
-                Igurishwa ryanditswe neza!
-                {formData.payment_type === "CREDIT" && " Ideni ryongerewe."}
+                Sale recorded successfully!
+                {formData.payment_type === "CREDIT" && " Credit added."}
               </p>
             </div>
           )}
@@ -294,12 +294,12 @@ export function StockOutForm({ products }: StockOutFormProps) {
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Tegereza...
+                Loading...
               </>
             ) : (
               <>
                 <Minus className="mr-2 h-5 w-5" />
-                Gurisha
+                Record Sale
               </>
             )}
           </Button>

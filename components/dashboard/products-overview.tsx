@@ -26,15 +26,15 @@ export function ProductsOverview({ products }: ProductsOverviewProps) {
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg">
             <Beer className="h-5 w-5 text-primary" />
-            Ibicuruzwa (Products)
+            Products
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-center py-8">
             <Beer className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-50" />
-            <p className="text-muted-foreground mb-4">Nta bicuruzwa urafite</p>
+            <p className="text-muted-foreground mb-4">No products yet</p>
             <Link href="/dashboard/products">
-              <Button>Ongeraho Igicuruzwa</Button>
+              <Button>Add Product</Button>
             </Link>
           </div>
         </CardContent>

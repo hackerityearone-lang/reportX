@@ -35,7 +35,7 @@ export default async function CreditsPage() {
           <CreditCard className="h-7 w-7 text-primary" />
           Amadeni (Credits)
         </h1>
-        <p className="text-muted-foreground">Gucunga amadeni y'abakiriya</p>
+        <p className="text-muted-foreground">Manage customer credits</p>
       </div>
 
       {/* Stats */}

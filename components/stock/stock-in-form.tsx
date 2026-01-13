@@ -44,7 +44,7 @@ export function StockInForm({ products }: StockInFormProps) {
     } = await supabase.auth.getUser()
 
     if (!user) {
-      setError("Ntabwo winjiye mu konti")
+      setError("You are not logged in")
       setIsLoading(false)
       return
     }
@@ -87,11 +87,11 @@ export function StockInForm({ products }: StockInFormProps) {
         <CardContent className="py-12">
           <div className="text-center">
             <Beer className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <h3 className="text-lg font-semibold text-foreground mb-2">Nta bicuruzwa bihari</h3>
-            <p className="text-muted-foreground mb-4">Tangira wongereho ibicuruzwa mbere yo kwandika ibyinjiye</p>
+            <h3 className="text-lg font-semibold text-foreground mb-2">No products available</h3>
+            <p className="text-muted-foreground mb-4">Add products first before recording stock in</p>
             <Button onClick={() => router.push("/dashboard/products")}>
               <Plus className="h-4 w-4 mr-2" />
-              Ongeraho Igicuruzwa
+              Add Product
             </Button>
           </div>
         </CardContent>
@@ -102,8 +102,8 @@ export function StockInForm({ products }: StockInFormProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Andika Ibyinjiye</CardTitle>
-        <CardDescription>Ongeraho stock bishya mu bubiko</CardDescription>
+        <CardTitle>Record Stock In</CardTitle>
+        <CardDescription>Add new stock to inventory</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -119,7 +119,7 @@ export function StockInForm({ products }: StockInFormProps) {
               }}
             >
               <SelectTrigger id="product" className="h-12">
-                <SelectValue placeholder="Hitamo igicuruzwa" />
+                <SelectValue placeholder="Select product" />
               </SelectTrigger>
               <SelectContent>
                 {products.map((product) => (
@@ -136,7 +136,7 @@ export function StockInForm({ products }: StockInFormProps) {
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="quantity">Umubare *</Label>
+            <Label htmlFor="quantity">Quantity *</Label>
             <Input
               id="quantity"
               type="number"
@@ -152,11 +152,11 @@ export function StockInForm({ products }: StockInFormProps) {
           {formData.quantity && selectedProduct && (
             <div className="bg-secondary/50 rounded-lg p-4">
               <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Igiciro:</span>
-                <span className="font-medium">{selectedProduct.price.toLocaleString()} RWF / kimwe</span>
+                <span className="text-muted-foreground">Price:</span>
+                <span className="font-medium">{selectedProduct.price.toLocaleString()} RWF / unit</span>
               </div>
               <div className="flex justify-between items-center mt-2">
-                <span className="text-muted-foreground">Igiteranyo:</span>
+                <span className="text-muted-foreground">Total:</span>
                 <span className="text-xl font-bold text-foreground">
                   {(Number.parseInt(formData.quantity || "0") * selectedProduct.price).toLocaleString()} RWF
                 </span>
@@ -165,10 +165,10 @@ export function StockInForm({ products }: StockInFormProps) {
           )}
 
           <div className="grid gap-2">
-            <Label htmlFor="notes">Icyitonderwa</Label>
+            <Label htmlFor="notes">Notes</Label>
             <Textarea
               id="notes"
-              placeholder="Icyitonderwa cyangwa amakuru y'inyongera..."
+              placeholder="Optional notes..."
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
             />
@@ -182,7 +182,7 @@ export function StockInForm({ products }: StockInFormProps) {
 
           {success && (
             <div className="bg-success/10 border border-success/30 rounded-lg p-3">
-              <p className="text-sm text-success">Stock yongewe neza!</p>
+              <p className="text-sm text-success">Stock added successfully!</p>
             </div>
           )}
 
@@ -190,12 +190,12 @@ export function StockInForm({ products }: StockInFormProps) {
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Tegereza...
+                Loading...
               </>
             ) : (
               <>
                 <Plus className="mr-2 h-5 w-5" />
-                Ongeraho Stock
+                Add Stock
               </>
             )}
           </Button>

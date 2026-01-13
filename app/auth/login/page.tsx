@@ -33,7 +33,8 @@ export default function LoginPage() {
       if (error) throw error
       router.push("/dashboard")
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "Habayeho ikosa")
+      const message = error instanceof Error ? error.message : "An error occurred"
+      setError(message)
     } finally {
       setIsLoading(false)
     }
@@ -50,14 +51,14 @@ export default function LoginPage() {
             </div>
             <div className="text-left">
               <h1 className="text-2xl font-bold text-foreground">Stock Manager</h1>
-              <p className="text-sm text-muted-foreground">Gucunga Ibicuruzwa</p>
+              <p className="text-sm text-muted-foreground">Manage Your Inventory</p>
             </div>
           </div>
 
           <Card className="shadow-lg border-2">
             <CardHeader className="text-center">
-              <CardTitle className="text-2xl">Injira</CardTitle>
-              <CardDescription>Andika email n'ijambo ryibanga kugira ngo winjire</CardDescription>
+              <CardTitle className="text-2xl">Login</CardTitle>
+              <CardDescription>Enter your email and password to access your account</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleLogin}>
@@ -78,7 +79,7 @@ export default function LoginPage() {
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="password" className="text-base">
-                      Ijambo ryibanga
+                      Password
                     </Label>
                     <Input
                       id="password"
@@ -98,17 +99,17 @@ export default function LoginPage() {
                     {isLoading ? (
                       <>
                         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                        Tegereza...
+                        Signing in...
                       </>
                     ) : (
-                      "Injira"
+                      "Login"
                     )}
                   </Button>
                 </div>
                 <div className="mt-6 text-center text-base">
-                  Nta konti ufite?{" "}
+                  Don't have an account?{" "}
                   <Link href="/auth/sign-up" className="text-primary font-semibold hover:underline underline-offset-4">
-                    Iyandikishe
+                    Sign up
                   </Link>
                 </div>
               </form>
@@ -117,7 +118,7 @@ export default function LoginPage() {
 
           <p className="text-center text-sm text-muted-foreground">
             <Link href="/" className="hover:text-primary hover:underline">
-              Subira ku rupapuro rw'ibanze
+              Back to home
             </Link>
           </p>
         </div>

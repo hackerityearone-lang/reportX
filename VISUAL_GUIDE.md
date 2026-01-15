@@ -29,11 +29,7 @@
 │                                                                 │
 │          Why Choose ReportX Stock?                              │
 │                                                                 │
-│  🌍                📊                🔒                         │
-│  Multi-Language    Advanced          Secure &                   │
-│  Support          Analytics         Reliable                    │
-│  English &        Real-time         Enterprise-grade            │
-│  Kinyarwanda      insights          security                    │
+   PRODUCTS                 │
 │                                                                 │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │

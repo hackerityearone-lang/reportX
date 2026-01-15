@@ -13,6 +13,7 @@ import {
   FileText,
   Settings,
   Beer,
+  Users,
 } from "lucide-react"
 
 export function DashboardSidebar() {
@@ -43,6 +44,12 @@ export function DashboardSidebar() {
       nameAlt: language === "rw" ? "Stock Out" : "Ibisohotse",
       href: "/dashboard/stock-out",
       icon: ArrowUpFromLine,
+    },
+    {
+      name: "Customers",
+      nameAlt: "Customers",
+      href: "/dashboard/customers",
+      icon: Users,
     },
     {
       name: t("nav", "credits"),

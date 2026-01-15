@@ -1,44 +1,168 @@
-import { createClient } from "@/lib/supabase/server"
-import { StockOutForm } from "@/components/stock/stock-out-form"
+"use client"
+
+import { useState, useEffect } from "react"
 import { RecentStockOut } from "@/components/stock/recent-stock-out"
-import { ArrowUpFromLine } from "lucide-react"
+import { AdvancedStockOutForm } from "@/components/stock/advanced-stock-out-form"
+import { stockOutService } from "@/lib/supabase/stock-out-service"
+import { Loader2, TrendingDown, DollarSign, Package, TrendingUp } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import type { StockTransaction } from "@/lib/types"
 
-export default async function StockOutPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+export default function StockOutPage() {
+  const [transactions, setTransactions] = useState<StockTransaction[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  if (!user) return null
+  // Stats
+  const [todayStats, setTodayStats] = useState({
+    totalCash: 0,
+    totalCredit: 0,
+    totalProfit: 0,
+    totalUnits: 0,
+    transactionCount: 0,
+  })
 
-  const [{ data: products }, { data: transactions }] = await Promise.all([
-    supabase.from("products").select("*").order("name"),
-    supabase
-      .from("stock_transactions")
-      .select("*, product:products(*)")
-      .eq("user_id", user.id)
-      .eq("type", "OUT")
-      .order("created_at", { ascending: false })
-      .limit(20),
-  ])
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  const loadData = async () => {
+    setIsLoading(true)
+    setError(null)
+    
+    try {
+      // Load transactions
+      const data = await stockOutService.getStockOuts()
+      setTransactions(data)
+
+      // Load today's stats
+      const stats = await stockOutService.getDailySalesSummary(new Date())
+      setTodayStats(stats)
+    } catch (err: any) {
+      console.error("Failed to load stock out data:", err)
+      setError(err.message || "Failed to load data")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Refresh data after successful transaction
+  const handleTransactionSuccess = () => {
+    loadData()
+  }
 
   return (
-    <div className="space-y-6 pb-20 lg:pb-6">
+    <div className="container mx-auto py-6 space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-          <ArrowUpFromLine className="h-7 w-7 text-primary" />
-          Ibisohotse (Stock Out)
-        </h1>
-        <p className="text-muted-foreground">Andika ibigurishijwe - amafaranga cyangwa amadeni</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Stock Out</h1>
+          <p className="text-muted-foreground mt-1">
+            Record sales, manage invoices, and track inventory
+          </p>
+        </div>
       </div>
 
+      {/* Today's Stats */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
+            <TrendingDown className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {todayStats.transactionCount}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Transactions today
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Cash Sales</CardTitle>
+            <DollarSign className="h-4 w-4 text-success" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-success">
+              {todayStats.totalCash.toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground">RWF today</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Credit Sales</CardTitle>
+            <DollarSign className="h-4 w-4 text-warning" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-warning">
+              {todayStats.totalCredit.toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground">RWF today</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Units Sold</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {todayStats.totalUnits}
+            </div>
+            <p className="text-xs text-muted-foreground">Items today</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Profit</CardTitle>
+            <TrendingUp className="h-4 w-4 text-success" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-success">
+              {todayStats.totalProfit.toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground">RWF today</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Main Content Grid */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Stock Out Form */}
-        <StockOutForm products={products || []} />
+        <div>
+          <AdvancedStockOutForm />
+        </div>
 
-        {/* Recent Stock Out */}
-        <RecentStockOut transactions={transactions || []} />
+        {/* Recent Transactions */}
+        <div>
+          {isLoading ? (
+            <Card>
+              <CardContent className="py-12">
+                <div className="flex flex-col items-center gap-2">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <p className="text-sm text-muted-foreground">Loading transactions...</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : error ? (
+            <Card>
+              <CardContent className="py-12">
+                <div className="text-center">
+                  <p className="text-destructive">{error}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <RecentStockOut transactions={transactions.slice(0, 10)} />
+          )}
+        </div>
       </div>
     </div>
   )

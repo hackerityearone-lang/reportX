@@ -143,8 +143,8 @@ export const translations = {
 export const translations = {
   common: {
     appName: { en: "ReportX Stock", rw: "ReportX Stock" },
-    tagline: { en: "Professional Stock Management", rw: "Gucunga Stock Byoroshye" },
-    loading: { en: "Loading...", rw: "Tegereza..." },
+    tagline: { en: "KIVU Quality SHEET ltd" },
+    loading: { en: "Loading..." },
     // ... rest
   }
 }

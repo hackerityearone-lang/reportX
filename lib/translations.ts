@@ -4,7 +4,7 @@ export const translations = {
   // Common
   common: {
     appName: { en: "ReportX Stock", rw: "ReportX Stock" },
-    tagline: { en: "Professional Stock Management", rw: "Gucunga Stock Byoroshye" },
+    tagline: { en: "KIVU Quality SHEET ltd", rw: "Gucunga Stock Byoroshye" },
     loading: { en: "Loading...", rw: "Tegereza..." },
     save: { en: "Save", rw: "Bika" },
     cancel: { en: "Cancel", rw: "Hagarika" },

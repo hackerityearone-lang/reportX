@@ -16,7 +16,7 @@ export default async function HomePage() {
         {/* Hero Section */}
         <section className="text-center py-16 mb-16">
           <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-6 text-balance">
-            ReportX Stock
+          KQS LTD
           </h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8 text-pretty">
             Modern stock management platform with comprehensive reporting tools. Track inventory, sales, credits, and generate

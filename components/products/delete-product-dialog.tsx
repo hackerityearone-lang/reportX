@@ -13,6 +13,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Loader2, AlertTriangle } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 import type { Product } from "@/lib/types"
 
 interface DeleteProductDialogProps {
@@ -23,19 +24,48 @@ interface DeleteProductDialogProps {
 
 export function DeleteProductDialog({ product, open, onOpenChange }: DeleteProductDialogProps) {
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
+  const { toast } = useToast()
 
   const handleDelete = async () => {
     if (!product) return
 
     setIsLoading(true)
-    const supabase = createClient()
+    setError(null)
+    
+    try {
+      const supabase = createClient()
 
-    await supabase.from("products").delete().eq("id", product.id)
+      const { error: deleteError } = await supabase
+        .from("products")
+        .delete()
+        .eq("id", product.id)
 
-    onOpenChange(false)
-    router.refresh()
-    setIsLoading(false)
+      if (deleteError) {
+        console.error("Delete error:", deleteError)
+        throw new Error(deleteError.message)
+      }
+
+      toast({
+        title: "Success",
+        description: `${product.name} has been deleted successfully.`,
+      })
+
+      onOpenChange(false)
+      router.refresh()
+    } catch (err: any) {
+      console.error("Failed to delete product:", err)
+      setError(err.message || "Failed to delete product")
+      
+      toast({
+        title: "Error",
+        description: err.message || "Failed to delete product",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -49,9 +79,19 @@ export function DeleteProductDialog({ product, open, onOpenChange }: DeleteProdu
           <AlertDialogDescription>
             Urashaka gusiba <strong>{product?.name}</strong>? Ibi ntibishobora gusubizwa inyuma.
           </AlertDialogDescription>
+          {error && (
+            <div className="mt-2 p-3 rounded-lg bg-destructive/10 border border-destructive/30">
+              <p className="text-sm text-destructive">{error}</p>
+            </div>
+          )}
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="bg-transparent">
+          <Button 
+            variant="outline" 
+            onClick={() => onOpenChange(false)} 
+            disabled={isLoading}
+            className="bg-transparent"
+          >
             Hagarika
           </Button>
           <Button variant="destructive" onClick={handleDelete} disabled={isLoading}>
@@ -61,7 +101,7 @@ export function DeleteProductDialog({ product, open, onOpenChange }: DeleteProdu
                 Tegereza...
               </>
             ) : (
-              "Siba"
+              "Delete"
             )}
           </Button>
         </AlertDialogFooter>

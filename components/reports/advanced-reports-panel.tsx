@@ -102,7 +102,7 @@ export function AdvancedReportsPanel() {
 
             <div className="p-8 md:p-12 space-y-12">
               
-              {/* SECTION: SALES LOG */}
+              {/* SECTION: SALES LOG WITH PAYMENT TYPE */}
               <section className="space-y-6">
                 <h3 className="text-xl font-bold flex items-center gap-2 border-b pb-4">
                   <Clock className="h-5 w-5 text-primary" /> Sales Dispatch Log
@@ -113,6 +113,7 @@ export function AdvancedReportsPanel() {
                       <th className="pb-4">Time</th>
                       <th className="pb-4">Customer</th>
                       <th className="pb-4">Items Detailed</th>
+                      <th className="pb-4 text-center">Payment</th>
                       <th className="pb-4 text-right">Total</th>
                     </tr>
                   </thead>
@@ -131,6 +132,13 @@ export function AdvancedReportsPanel() {
                               </span>
                             ))}
                           </div>
+                        </td>
+                        <td className="py-4 text-center">
+                          {s.payment_type === 'CASH' ? (
+                            <Badge className="bg-emerald-500 text-white hover:bg-emerald-600">CASH</Badge>
+                          ) : (
+                            <Badge className="bg-amber-500 text-white hover:bg-amber-600">CREDIT</Badge>
+                          )}
                         </td>
                         <td className="py-4 text-right font-black">{s.total_amount.toLocaleString()} RWF</td>
                       </tr>
@@ -166,6 +174,7 @@ export function AdvancedReportsPanel() {
                       <Badge variant="destructive" className="font-black">{p.quantity} LEFT</Badge>
                     </div>
                   ))}
+                  {detailedLog?.lowStock?.length === 0 && <p className="text-slate-400 text-xs italic text-center">All stock levels healthy</p>}
                 </div>
               </div>
 
@@ -185,20 +194,17 @@ export function AdvancedReportsPanel() {
         </div>
       )}
 
-      {/* THE PRINT ENGINE - STICK THIS AT THE BOTTOM */}
+      {/* THE PRINT ENGINE */}
       <style jsx global>{`
         @media print {
-          /* 1. Hide the entire root application and all sidebars/navbars */
           body * {
             visibility: hidden !important;
           }
 
-          /* 2. Target the report specifically and make it visible */
           #printable-report, #printable-report * {
             visibility: visible !important;
           }
 
-          /* 3. Force the report to cover the entire page starting from top-left (0,0) */
           #printable-report {
             position: fixed !important;
             left: 0 !important;
@@ -213,14 +219,16 @@ export function AdvancedReportsPanel() {
             z-index: 9999999 !important;
           }
 
-          /* 4. Force colors to show (Chrome/Safari/Edge) */
           .bg-slate-900 {
             background-color: #0f172a !important;
             -webkit-print-color-adjust: exact !important;
             color: white !important;
           }
 
-          /* 5. Clean up page margins */
+          .bg-emerald-500, .bg-amber-500 {
+            -webkit-print-color-adjust: exact !important;
+          }
+
           @page {
             margin: 0;
             size: auto;

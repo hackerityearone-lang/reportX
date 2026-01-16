@@ -65,6 +65,85 @@ export const reportsService = {
     return report as DailyReport
   },
 
+  async getWeeklyReport(startOfWeek: Date) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error("Not authenticated")
+
+    const endOfWeek = new Date(startOfWeek)
+    endOfWeek.setDate(endOfWeek.getDate() + 6)
+    endOfWeek.setHours(23, 59, 59, 999)
+
+    // Get all transactions for the week
+    const { data: txs } = await supabase
+      .from("stock_transactions")
+      .select("created_at, payment_type, total_amount, total_profit, quantity")
+      .eq("user_id", user.id)
+      .eq("type", "OUT")
+      .gte("created_at", startOfWeek.toISOString())
+      .lte("created_at", endOfWeek.toISOString())
+      .order("created_at")
+
+    // Group by day
+    const dayMap = new Map<string, { cash: number; credit: number; profit: number; units: number }>()
+    
+    // Initialize all 7 days
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(startOfWeek)
+      day.setDate(day.getDate() + i)
+      const dateKey = day.toLocaleDateString('en-CA')
+      dayMap.set(dateKey, { cash: 0, credit: 0, profit: 0, units: 0 })
+    }
+
+    // Aggregate transactions by day
+    txs?.forEach(tx => {
+      const txDate = new Date(tx.created_at)
+      const dateKey = txDate.toLocaleDateString('en-CA')
+      const dayData = dayMap.get(dateKey)
+      
+      if (dayData) {
+        dayData.units += tx.quantity || 0
+        dayData.profit += tx.total_profit || 0
+        if (tx.payment_type === "CASH") {
+          dayData.cash += tx.total_amount || 0
+        } else {
+          dayData.credit += tx.total_amount || 0
+        }
+      }
+    })
+
+    // Convert to array format for charts
+    const dayBreakdown = Array.from(dayMap.entries()).map(([dateKey, data]) => {
+      const date = new Date(dateKey)
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+      return {
+        date: dayNames[date.getDay()],
+        fullDate: dateKey,
+        cash: data.cash,
+        credit: data.credit,
+        profit: data.profit,
+        units: data.units,
+        total: data.cash + data.credit
+      }
+    })
+
+    // Calculate totals
+    const totalCash = dayBreakdown.reduce((sum, day) => sum + day.cash, 0)
+    const totalCredit = dayBreakdown.reduce((sum, day) => sum + day.credit, 0)
+    const totalProfit = dayBreakdown.reduce((sum, day) => sum + day.profit, 0)
+    const totalUnits = dayBreakdown.reduce((sum, day) => sum + day.units, 0)
+
+    return {
+      startDate: startOfWeek.toLocaleDateString('en-CA'),
+      endDate: endOfWeek.toLocaleDateString('en-CA'),
+      totalCash,
+      totalCredit,
+      totalProfit,
+      totalUnits,
+      totalIncome: totalCash + totalCredit,
+      dayBreakdown
+    }
+  },
+
   async getDetailedDailyLog(date: Date) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return null
@@ -102,7 +181,8 @@ export const reportsService = {
     // 3. Get Low Stock Products
     const { data: allProducts, error: productsError } = await supabase
       .from("products")
-      .select("id, name, brand, quantity, min_stock_level, price");
+      .select("id, name, brand, quantity, min_stock_level, price")
+      .eq("is_archived", false); // Exclude archived products
 
     if (productsError) {
       console.error("ERROR fetching products:", productsError);
@@ -139,12 +219,12 @@ export const reportsService = {
       .gte("created_at", today.toISOString())
       .lte("created_at", endOfDay.toISOString())
 
-    let todayCash = 0, todayCredit = 0, todayProfit = 0, todayUnits = 0
+    let today_cash = 0, today_credit = 0, today_profit = 0, todayUnits = 0
     todayTxs?.forEach(tx => {
       todayUnits += (tx.quantity || 0)
-      todayProfit += (tx.total_profit || 0)
-      if (tx.payment_type === "CASH") todayCash += (tx.total_amount || 0)
-      else todayCredit += (tx.total_amount || 0)
+      today_profit += (tx.total_profit || 0)
+      if (tx.payment_type === "CASH") today_cash += (tx.total_amount || 0)
+      else today_credit += (tx.total_amount || 0)
     })
 
     // Get total customers
@@ -152,6 +232,7 @@ export const reportsService = {
       .from("customers")
       .select("*", { count: "exact", head: true })
       .eq("user_id", user.id)
+      .eq("is_archived", false)
 
     // Get pending credits
     const { data: credits } = await supabase
@@ -161,22 +242,23 @@ export const reportsService = {
       .eq("is_active", true)
       .neq("status", "PAID")
 
-    const pendingCredit = credits?.reduce((sum, c) => sum + (c.amount_owed - c.amount_paid), 0) || 0
+    const pending_credit = credits?.reduce((sum, c) => sum + (c.amount_owed - c.amount_paid), 0) || 0
 
-    // Get low stock count
+    // Get low stock count (exclude archived products)
     const { data: products } = await supabase
       .from("products")
       .select("quantity, min_stock_level")
+      .eq("is_archived", false)
 
-    const lowStockCount = products?.filter(p => p.quantity <= p.min_stock_level).length || 0
+    const low_stock_products = products?.filter(p => p.quantity <= p.min_stock_level).length || 0
 
     return {
-      todayCash,
-      todayCredit,
-      todayProfit,
-      totalCustomers: totalCustomers || 0,
-      pendingCredit,
-      lowStockProducts: lowStockCount
+      today_cash,
+      today_credit,
+      today_profit,
+      total_customers: totalCustomers || 0,
+      pending_credit,
+      low_stock_products
     }
   }
 }

@@ -38,6 +38,11 @@ export function RecentStockIn({ transactions }: RecentStockInProps) {
             minute: "2-digit",
           })
 
+          // Calculate total cost for stock-in transactions
+          const totalCost = transaction.buying_price && transaction.quantity 
+            ? transaction.buying_price * transaction.quantity 
+            : null
+
           return (
             <div
               key={transaction.id}
@@ -52,8 +57,8 @@ export function RecentStockIn({ transactions }: RecentStockInProps) {
               </div>
               <div className="text-right">
                 <p className="font-bold text-success">+{transaction.quantity}</p>
-                {transaction.total_amount && (
-                  <p className="text-xs text-muted-foreground">{transaction.total_amount.toLocaleString()} RWF</p>
+                {totalCost && (
+                  <p className="text-xs text-muted-foreground">{totalCost.toLocaleString()} RWF</p>
                 )}
               </div>
             </div>

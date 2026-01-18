@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { StockTransaction } from "@/lib/types"
 
 export default function StockOutPage() {
-  const [transactions, setTransactions] = useState<StockTransaction[]>([])
+  const [transactions, setTransactions] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -33,7 +33,26 @@ export default function StockOutPage() {
     try {
       // Load transactions
       const data = await stockOutService.getStockOuts()
-      setTransactions(data)
+      
+      // Transform data to include total_amount if not present
+      const enhancedData = data.map((tx: any) => {
+        // Check if total_amount already exists
+        if (tx.total_amount !== undefined) {
+          return tx
+        }
+        
+        // Calculate total_amount from available fields
+        // Try different possible field name combinations
+        const quantity = tx.quantity || tx.qty || 0
+        const price = tx.unit_price || tx.price || tx.selling_price || tx.amount || 0
+        
+        return {
+          ...tx,
+          total_amount: quantity * price
+        }
+      })
+      
+      setTransactions(enhancedData)
 
       // Load today's stats
       const stats = await stockOutService.getDailySalesSummary(new Date())

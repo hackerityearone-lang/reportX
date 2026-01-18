@@ -113,14 +113,14 @@ export const customerService = {
    * Get customer's total credit balance
    */
   async getCustomerCreditBalance(customerId: string): Promise<number> {
-    const { data, error } = await supabase
-      .from("credits")
-      .select("amount_owed, amount_paid")
-      .eq("customer_id", customerId)
-      .eq("is_active", true)
-      .eq("status", "!=", "PAID")
+   const { data, error } = await supabase
+  .from("credit_transactions")
+  .select("*")
+  .eq("customer_id", customerId)
+  .eq("is_active", true)
+  .neq("status", "PAID")  // ✅ Changed this line
 
-    if (error) throw new Error(error.message)
+if (error) throw new Error(error.message)
 
     const totalOwed = (data || []).reduce((sum, credit) => sum + (credit.amount_owed || 0), 0)
     const totalPaid = (data || []).reduce((sum, credit) => sum + (credit.amount_paid || 0), 0)

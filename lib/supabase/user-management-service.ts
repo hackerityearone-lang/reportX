@@ -20,7 +20,7 @@ export const userManagementService = {
   async getAllUsers(): Promise<UserManagementProfile[]> {
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, email, full_name, role, status, created_at")
+      .select("*")
       .order("created_at", { ascending: false })
 
     if (error) {

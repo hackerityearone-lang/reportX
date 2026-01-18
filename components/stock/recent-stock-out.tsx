@@ -37,14 +37,24 @@ interface StockOutItem {
   product_id: string
   quantity: number
   selling_price: number
-  products?: { name: string; brand?: string }
-  product?: { name: string; brand?: string }
+  products?: { name: string; brand?: string | null } | null
+  product?: { name: string; brand?: string | null } | null
 }
 
-interface EnhancedStockTransaction extends StockTransaction {
+// Define the enhanced transaction - using type instead of interface to avoid strict compatibility
+type EnhancedStockTransaction = {
+  id: string
+  created_at: string
+  quantity?: number | null
   stock_out_items?: StockOutItem[]
   customers?: Customer | null
-  product?: Product | null 
+  customer_name?: string
+  product?: Product | null
+  total_amount: number
+  total_profit?: number | null
+  selling_price?: number | null
+  payment_type: 'CASH' | 'CREDIT'
+  invoice_number?: string | null
 }
 
 interface RecentStockOutProps {
@@ -71,6 +81,7 @@ function InvoiceModal({
     ? transaction.stock_out_items 
     : transaction.product ? [{
         id: 'legacy',
+        product_id: '',
         quantity: transaction.quantity || 1,
         selling_price: transaction.selling_price || (transaction.total_amount / (transaction.quantity || 1)),
         product: transaction.product,

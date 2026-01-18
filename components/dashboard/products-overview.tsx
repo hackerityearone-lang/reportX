@@ -14,8 +14,8 @@ export function ProductsOverview({ products }: ProductsOverviewProps) {
   // Sort products by quantity (low stock first)
   const sortedProducts = [...products]
     .sort((a, b) => {
-      const aRatio = a.quantity / a.minimum_stock_level
-      const bRatio = b.quantity / b.minimum_stock_level
+      const aRatio = a.quantity / a.min_stock_level
+      const bRatio = b.quantity / b.min_stock_level
       return aRatio - bRatio
     })
     .slice(0, 8)
@@ -58,8 +58,8 @@ export function ProductsOverview({ products }: ProductsOverviewProps) {
       <CardContent>
         <div className="grid gap-3">
           {sortedProducts.map((product) => {
-            const stockPercentage = Math.min((product.quantity / (product.minimum_stock_level * 2)) * 100, 100)
-            const isLowStock = product.quantity <= product.minimum_stock_level
+            const stockPercentage = Math.min((product.quantity / (product.min_stock_level * 2)) * 100, 100)
+            const isLowStock = product.quantity <= product.min_stock_level
             const isOutOfStock = product.quantity === 0
 
             return (
@@ -112,7 +112,7 @@ export function ProductsOverview({ products }: ProductsOverviewProps) {
                   >
                     {product.quantity}
                   </p>
-                  <p className="text-xs text-muted-foreground">/ {product.minimum_stock_level * 2}</p>
+                  <p className="text-xs text-muted-foreground">/ {product.min_stock_level * 2}</p>
                 </div>
               </div>
             )

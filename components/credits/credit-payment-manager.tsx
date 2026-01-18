@@ -180,7 +180,7 @@ export function CreditPaymentManager() {
             )}
           </div>
 
-          <div className="text-right flex-shrink-0">
+          <div className="text-right shrink-0">
             <p className="text-xs text-muted-foreground mb-2">
               {new Date(credit.created_at).toLocaleDateString()}
             </p>
@@ -411,7 +411,7 @@ export function CreditPaymentManager() {
                         </div>
                       </div>
 
-                      <div className="text-right flex-shrink-0">
+                      <div className="text-right shrink-0">
                         <p className="text-xs text-muted-foreground mb-2">
                           {new Date(credit.created_at).toLocaleDateString()}
                         </p>

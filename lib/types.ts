@@ -1,4 +1,6 @@
-export type UserRole = "USER" | "STOCK_BOSS"
+export type UserRole = "MANAGER" | "BOSS"
+
+export type UserStatus = "PENDING" | "APPROVED" | "BLOCKED"
 
 export type TransactionType = "IN" | "OUT"
 
@@ -15,9 +17,10 @@ export interface Product {
   name: string
   brand: string
   quantity: number
-  minimum_stock_level: number
+  min_stock_level: number // Updated from minimum_stock_level
   image_url: string | null
-  price: number
+  price: number // Buying/cost price
+  selling_price: number // NEW: Selling/retail price
   created_at: string
   updated_at: string
   user_id?: string
@@ -27,6 +30,7 @@ export interface Profile {
   id: string
   full_name: string | null
   role: UserRole
+  status?: UserStatus
   phone_number: string | null
   created_at: string
   updated_at: string
@@ -182,45 +186,3 @@ export interface DashboardStats {
   pendingCreditsAmount: number
 }
 
-// Kinyarwanda translations
-export const KY_TRANSLATIONS = {
-  stockIn: "Ibyinjiye",
-  stockOut: "Ibisohotse",
-  credit: "Ideni",
-  credits: "Amadeni",
-  cash: "Amafaranga",
-  report: "Raporo",
-  reports: "Raporo",
-  remainingStock: "Ibisigaye",
-  products: "Ibicuruzwa",
-  dashboard: "Ikibaho",
-  dailyReport: "Raporo y'umunsi",
-  weeklyReport: "Raporo y'icyumweru",
-  monthlyReport: "Raporo y'ukwezi",
-  creditReport: "Raporo y'amadeni",
-  quantity: "Umubare",
-  price: "Igiciro",
-  total: "Igiteranyo",
-  customer: "Umukiriya",
-  date: "Itariki",
-  lowStock: "Stock Nke",
-  welcome: "Murakaza neza",
-  login: "Injira",
-  logout: "Sohoka",
-  signUp: "Iyandikishe",
-  settings: "Igenamiterere",
-  save: "Bika",
-  cancel: "Hagarika",
-  delete: "Siba",
-  edit: "Hindura",
-  add: "Ongeraho",
-  search: "Shakisha",
-  filter: "Shungura",
-  all: "Byose",
-  today: "Uyu munsi",
-  thisWeek: "Iki cyumweru",
-  thisMonth: "Uku kwezi",
-  paid: "Yishyuwe",
-  pending: "Bitegereje",
-  partial: "Igice",
-} as const

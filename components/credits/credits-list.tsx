@@ -25,8 +25,15 @@ export function CreditsList({ credits }: CreditsListProps) {
 
   const filteredCredits = credits.filter((credit) => {
     const matchesSearch = credit.customer_name.toLowerCase().includes(search.toLowerCase())
+    
+    // Use the correct property: status === "PAID" instead of is_paid
+    const isPaid = credit.status === "PAID"
+    
     const matchesFilter =
-      filter === "all" || (filter === "pending" && !credit.is_paid) || (filter === "paid" && credit.is_paid)
+      filter === "all" || 
+      (filter === "pending" && !isPaid) || 
+      (filter === "paid" && isPaid)
+      
     return matchesSearch && matchesFilter
   })
 
@@ -34,11 +41,16 @@ export function CreditsList({ credits }: CreditsListProps) {
     setLoadingId(creditId)
     const supabase = createClient()
 
+    // Update to use status instead of is_paid
+    const credit = credits.find(c => c.id === creditId)
+    if (!credit) return
+
     await supabase
       .from("credits")
       .update({
-        is_paid: true,
-        paid_at: new Date().toISOString(),
+        status: "PAID",
+        amount_paid: credit.amount_owed,
+        updated_at: new Date().toISOString(),
       })
       .eq("id", creditId)
 
@@ -46,9 +58,12 @@ export function CreditsList({ credits }: CreditsListProps) {
     setLoadingId(null)
   }
 
-  const getStatusBadge = (isPaid: boolean) => {
-    if (isPaid) {
+  const getStatusBadge = (status: string) => {
+    if (status === "PAID") {
       return <Badge className="bg-success/20 text-success border-success/30">Yishyuwe</Badge>
+    }
+    if (status === "PARTIAL") {
+      return <Badge className="bg-blue-500/20 text-blue-500 border-blue-500/30">Igice</Badge>
     }
     return <Badge className="bg-warning/20 text-warning-foreground border-warning/30">Bitegereje</Badge>
   }
@@ -71,7 +86,7 @@ export function CreditsList({ credits }: CreditsListProps) {
     <Card>
       <CardHeader className="pb-4">
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-          <CardTitle className="text-lg">Urutonde rw'Amadeni</CardTitle>
+          <CardTitle className="text-lg">Urutonde rw&apos;Amadeni</CardTitle>
           <div className="flex-1 flex flex-col sm:flex-row gap-3">
             {/* Search */}
             <div className="relative flex-1 max-w-sm">
@@ -84,7 +99,7 @@ export function CreditsList({ credits }: CreditsListProps) {
               />
             </div>
 
-            {/* Filter - Updated to use pending/paid instead of status values */}
+            {/* Filter */}
             <Tabs value={filter} onValueChange={(v) => setFilter(v as typeof filter)}>
               <TabsList>
                 <TabsTrigger value="all">Byose</TabsTrigger>
@@ -104,6 +119,9 @@ export function CreditsList({ credits }: CreditsListProps) {
               month: "short",
               year: "numeric",
             })
+            
+            const isPaid = credit.status === "PAID"
+            const remainingAmount = credit.amount_owed - credit.amount_paid
 
             return (
               <div
@@ -114,7 +132,7 @@ export function CreditsList({ credits }: CreditsListProps) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="font-semibold text-foreground">{credit.customer_name}</p>
-                    {getStatusBadge(credit.is_paid)}
+                    {getStatusBadge(credit.status)}
                   </div>
                   <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
                     <Calendar className="h-3 w-3" />
@@ -127,18 +145,25 @@ export function CreditsList({ credits }: CreditsListProps) {
                   )}
                 </div>
 
-                {/* Amount Info - Simplified to just show amount */}
+                {/* Amount Info */}
                 <div className="flex items-center gap-4">
                   <div className="text-right">
-                    <p className="text-sm text-muted-foreground">Ideni</p>
-                    <p className={`font-bold text-lg ${credit.is_paid ? "text-success" : "text-warning"}`}>
-                      {credit.amount.toLocaleString()} RWF
+                    <p className="text-sm text-muted-foreground">
+                      {credit.status === "PARTIAL" ? "Ibisigaye" : "Ideni"}
                     </p>
+                    <p className={`font-bold text-lg ${isPaid ? "text-success" : "text-warning"}`}>
+                      {(credit.status === "PARTIAL" ? remainingAmount : credit.amount_owed).toLocaleString()} RWF
+                    </p>
+                    {credit.status === "PARTIAL" && (
+                      <p className="text-xs text-muted-foreground">
+                        Yishyuwe: {credit.amount_paid.toLocaleString()} RWF
+                      </p>
+                    )}
                   </div>
                 </div>
 
-                {/* Action Button - Simple mark as paid button */}
-                {!credit.is_paid && (
+                {/* Action Button */}
+                {!isPaid && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -162,7 +187,7 @@ export function CreditsList({ credits }: CreditsListProps) {
 
           {filteredCredits.length === 0 && (
             <div className="text-center py-8">
-              <p className="text-muted-foreground">Nta madeni ahuye n'ibyo ushakisha</p>
+              <p className="text-muted-foreground">Nta madeni ahuye n&apos;ibyo ushakisha</p>
             </div>
           )}
         </div>

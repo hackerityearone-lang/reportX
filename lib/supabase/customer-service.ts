@@ -161,6 +161,33 @@ export const customerService = {
     if (error) throw new Error(error.message)
     return data || []
   },
+
+  /**
+   * Get customer's transactions with item and product details
+   */
+  async getCustomerTransactions(customerId: string): Promise<any[]> {
+    const { data, error } = await supabase
+      .from("stock_transactions")
+      .select(`
+        id,
+        invoice_number,
+        created_at,
+        payment_type,
+        total_amount,
+        stock_out_items (
+          id,
+          quantity,
+          selling_price,
+          subtotal,
+          products(id, name)
+        )
+      `)
+      .eq("customer_id", customerId)
+      .order("created_at", { ascending: false })
+
+    if (error) throw new Error(error.message)
+    return data || []
+  },
 }
 
 export default customerService

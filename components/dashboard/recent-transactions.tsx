@@ -6,7 +6,11 @@ import { Button } from "@/components/ui/button"
 import type { StockTransaction } from "@/lib/types"
 
 interface RecentTransactionsProps {
-  transactions: (StockTransaction & { product?: { name: string; brand: string } | null })[]
+  transactions: (StockTransaction & { 
+    product?: { name: string; brand: string } | null
+    total_amount?: number | null
+    payment_type?: "CASH" | "CREDIT" | null
+  })[]
 }
 
 export function RecentTransactions({ transactions }: RecentTransactionsProps) {
@@ -56,7 +60,7 @@ export function RecentTransactions({ transactions }: RecentTransactionsProps) {
             </thead>
             <tbody>
               {transactions.slice(0, 5).map((transaction) => {
-                const isStockIn = transaction.transaction_type === "IN"
+                const isStockIn = transaction.type === "IN"
                 const date = new Date(transaction.created_at)
                 const formattedDate = date.toLocaleDateString("rw-RW", {
                   day: "numeric",

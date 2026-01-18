@@ -3,6 +3,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
+import { useState } from "react"
+import CustomerDetailsDialog from "@/components/customers/customer-details"
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
@@ -240,7 +242,7 @@ function StockReportCard({ data }: { data: StockReportData }) {
   )
 }
 
-function CreditReportCard({ data }: { data: CreditReportData }) {
+function CreditReportCard({ data, onSelectCustomer }: { data: CreditReportData; onSelectCustomer?: (id: string) => void }) {
   const paidPercentage =
     data.totalOwed + data.totalPaid > 0 ? (data.totalPaid / (data.totalOwed + data.totalPaid)) * 100 : 0
 
@@ -310,14 +312,19 @@ function CreditReportCard({ data }: { data: CreditReportData }) {
           <CardContent className="space-y-2">
             {data.pendingCredits.slice(0, 5).map((credit) => {
               return (
-                <div key={credit.id} className="flex items-center justify-between p-2 rounded-lg bg-secondary/30">
+                <div
+                  key={credit.id}
+                  onClick={() => credit.customer_id && onSelectCustomer?.(credit.customer_id)}
+                  role={credit.customer_id ? "button" : "presentation"}
+                  className={`flex items-center justify-between p-2 rounded-lg bg-secondary/30 ${credit.customer_id ? "cursor-pointer hover:bg-secondary/40" : ""}`}
+                >
                   <div>
                     <p className="font-medium">{credit.customer_name}</p>
                     <p className="text-xs text-muted-foreground">
                       {new Date(credit.created_at).toLocaleDateString("en-US")}
                     </p>
                   </div>
-                  <p className="font-bold text-warning">{credit.amount.toLocaleString()} RWF</p>
+                  <p className="font-bold text-warning">{(credit.amount_owed || 0).toLocaleString()} RWF</p>
                 </div>
               )
             })}
@@ -332,6 +339,14 @@ function CreditReportCard({ data }: { data: CreditReportData }) {
 }
 
 export function ReportsTabs({ dailyReport, weeklyReport, monthlyReport, stockReport, creditReport }: ReportsTabsProps) {
+  const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
+
+  const handleSelectCustomer = (id: string) => {
+    setSelectedCustomer(id)
+    setDialogOpen(true)
+  }
+
   return (
     <Tabs defaultValue="daily" className="space-y-6">
       <TabsList className="grid w-full grid-cols-5">
@@ -359,7 +374,8 @@ export function ReportsTabs({ dailyReport, weeklyReport, monthlyReport, stockRep
       </TabsContent>
 
       <TabsContent value="credits">
-        <CreditReportCard data={creditReport} />
+        <CreditReportCard data={creditReport} onSelectCustomer={handleSelectCustomer} />
+        <CustomerDetailsDialog customerId={selectedCustomer} open={dialogOpen} onOpenChange={(o) => { if (!o) setSelectedCustomer(null); setDialogOpen(o) }} />
       </TabsContent>
     </Tabs>
   )

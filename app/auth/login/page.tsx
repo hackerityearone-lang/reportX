@@ -26,13 +26,56 @@ export default function LoginPage() {
     setError(null)
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      // Sign in the user
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
-      if (error) throw error
+      
+      if (authError) throw authError
+      
+      console.log("Auth successful:", authData.user?.id)
+
+      // Check the user's profile status
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("full_name, role, status")
+        .eq("id", authData.user.id)
+        .single()
+
+      if (profileError) {
+        console.error("Profile fetch error details:", {
+          message: profileError.message,
+          details: profileError.details,
+          hint: profileError.hint,
+          code: profileError.code
+        })
+        throw new Error(`Failed to fetch user profile: ${profileError.message}`)
+      }
+
+      console.log("Profile data:", profile)
+
+      // Check status and redirect accordingly
+      if (profile.status === "PENDING") {
+        router.push("/auth/pending")
+        return
+      }
+
+      if (profile.status === "BLOCKED") {
+        throw new Error("Your account has been blocked. Please contact administrator.")
+      }
+
+      if (profile.status !== "APPROVED") {
+        throw new Error("Your account is not approved yet. Please contact administrator.")
+      }
+
+      // If approved, redirect to dashboard
+      console.log("Redirecting to dashboard...")
       router.push("/dashboard")
+      router.refresh() // Force a refresh to update the session
+      
     } catch (error: unknown) {
+      console.error("Login error:", error)
       const message = error instanceof Error ? error.message : "An error occurred"
       setError(message)
     } finally {
@@ -107,10 +150,7 @@ export default function LoginPage() {
                   </Button>
                 </div>
                 <div className="mt-6 text-center text-base">
-                  Don't have an account?{" "}
-                  <Link href="/auth/sign-up" className="text-primary font-semibold hover:underline underline-offset-4">
-                    Sign up
-                  </Link>
+                  Account creation is restricted. Contact your administrator to request access.
                 </div>
               </form>
             </CardContent>

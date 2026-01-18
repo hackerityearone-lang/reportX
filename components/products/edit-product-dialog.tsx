@@ -36,6 +36,7 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
     quantity: "",
     min_stock_level: "",
     price: "",
+    selling_price: "",
     image_url: "",
   })
 
@@ -47,6 +48,7 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
         quantity: product.quantity.toString(),
         min_stock_level: product.min_stock_level.toString(),
         price: product.price.toString(),
+        selling_price: (product.selling_price || 0).toString(),
         image_url: product.image_url || "",
       })
     }
@@ -69,6 +71,7 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
         quantity: Number.parseInt(formData.quantity) || 0,
         min_stock_level: Number.parseInt(formData.min_stock_level) || 10,
         price: Number.parseFloat(formData.price) || 0,
+        selling_price: Number.parseFloat(formData.selling_price) || 0,
         image_url: formData.image_url || null,
         updated_at: new Date().toISOString(),
       })
@@ -89,13 +92,13 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Hindura Igicuruzwa</DialogTitle>
-          <DialogDescription>Hindura amakuru y'igicuruzwa</DialogDescription>
+          <DialogTitle>Edit Product</DialogTitle>
+          <DialogDescription>Update product information</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="edit-name">Izina ry'igicuruzwa *</Label>
+              <Label htmlFor="edit-name">Product Name *</Label>
               <Input
                 id="edit-name"
                 value={formData.name}
@@ -104,7 +107,7 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="edit-brand">Brand / Urwego</Label>
+              <Label htmlFor="edit-brand">Brand</Label>
               <Input
                 id="edit-brand"
                 value={formData.brand}
@@ -113,7 +116,7 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="edit-quantity">Umubare (Stock)</Label>
+                <Label htmlFor="edit-quantity">Quantity (Stock)</Label>
                 <Input
                   id="edit-quantity"
                   type="number"
@@ -123,7 +126,7 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="edit-min_stock">Stock Ntarengwa</Label>
+                <Label htmlFor="edit-min_stock">Min Stock Level</Label>
                 <Input
                   id="edit-min_stock"
                   type="number"
@@ -133,19 +136,34 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
                 />
               </div>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-price">Igiciro (RWF) *</Label>
-              <Input
-                id="edit-price"
-                type="number"
-                min="0"
-                value={formData.price}
-                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                required
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-price">Buying Price (RWF) *</Label>
+                <Input
+                  id="edit-price"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.price}
+                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-selling_price">Selling Price (RWF) *</Label>
+                <Input
+                  id="edit-selling_price"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.selling_price}
+                  onChange={(e) => setFormData({ ...formData, selling_price: e.target.value })}
+                  required
+                />
+              </div>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="edit-image">URL y'Ifoto</Label>
+              <Label htmlFor="edit-image">Image URL</Label>
               <Input
                 id="edit-image"
                 type="url"
@@ -161,16 +179,16 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="bg-transparent">
-              Hagarika
+              Cancel
             </Button>
             <Button type="submit" disabled={isLoading}>
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Tegereza...
+                  Saving...
                 </>
               ) : (
-                "Bika"
+                "Save"
               )}
             </Button>
           </DialogFooter>

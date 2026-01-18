@@ -31,6 +31,7 @@ export function AddProductDialog() {
     quantity: "",
     min_stock_level: "10",
     price: "",
+    selling_price: "",
     image_url: "",
   })
 
@@ -41,13 +42,16 @@ export function AddProductDialog() {
 
     const supabase = createClient()
 
+    // Don't include user_id so products are shared across all users
     const { error: insertError } = await supabase.from("products").insert({
       name: formData.name,
       brand: formData.brand,
       quantity: Number.parseInt(formData.quantity) || 0,
       min_stock_level: Number.parseInt(formData.min_stock_level) || 10,
       price: Number.parseFloat(formData.price) || 0,
+      selling_price: Number.parseFloat(formData.selling_price) || 0,
       image_url: formData.image_url || null,
+      // user_id is removed - products are now shared
     })
 
     if (insertError) {
@@ -63,6 +67,7 @@ export function AddProductDialog() {
       quantity: "",
       min_stock_level: "10",
       price: "",
+      selling_price: "",
       image_url: "",
     })
     router.refresh()
@@ -74,38 +79,38 @@ export function AddProductDialog() {
       <DialogTrigger asChild>
         <Button size="lg" className="gap-2">
           <Plus className="h-5 w-5" />
-          Ongeraho Igicuruzwa
+          Add Product
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Ongeraho Igicuruzwa Gishya</DialogTitle>
-          <DialogDescription>Uzuza amakuru y'igicuruzwa gishya</DialogDescription>
+          <DialogTitle>Add New Product</DialogTitle>
+          <DialogDescription>Fill in the product information</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="name">Izina ry'igicuruzwa *</Label>
+              <Label htmlFor="name">Product Name *</Label>
               <Input
                 id="name"
-                placeholder="Urugero: Heineken 33cl"
+                placeholder="e.g., Heineken 33cl"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 required
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="brand">Brand / Urwego</Label>
+              <Label htmlFor="brand">Brand</Label>
               <Input
                 id="brand"
-                placeholder="Urugero: Heineken"
+                placeholder="e.g., Heineken"
                 value={formData.brand}
                 onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="quantity">Umubare (Stock)</Label>
+                <Label htmlFor="quantity">Quantity (Stock)</Label>
                 <Input
                   id="quantity"
                   type="number"
@@ -116,7 +121,7 @@ export function AddProductDialog() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="min_stock">Stock Ntarengwa</Label>
+                <Label htmlFor="min_stock">Min Stock Level</Label>
                 <Input
                   id="min_stock"
                   type="number"
@@ -127,20 +132,36 @@ export function AddProductDialog() {
                 />
               </div>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="price">Igiciro (RWF) *</Label>
-              <Input
-                id="price"
-                type="number"
-                min="0"
-                placeholder="1000"
-                value={formData.price}
-                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                required
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="price">Buying Price (RWF) *</Label>
+                <Input
+                  id="price"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="1000"
+                  value={formData.price}
+                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="selling_price">Selling Price (RWF) *</Label>
+                <Input
+                  id="selling_price"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="1500"
+                  value={formData.selling_price}
+                  onChange={(e) => setFormData({ ...formData, selling_price: e.target.value })}
+                  required
+                />
+              </div>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="image">URL y'Ifoto</Label>
+              <Label htmlFor="image">Image URL</Label>
               <Input
                 id="image"
                 type="url"
@@ -157,16 +178,16 @@ export function AddProductDialog() {
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)} className="bg-transparent">
-              Hagarika
+              Cancel
             </Button>
             <Button type="submit" disabled={isLoading}>
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Tegereza...
+                  Saving...
                 </>
               ) : (
-                "Bika"
+                "Save"
               )}
             </Button>
           </DialogFooter>

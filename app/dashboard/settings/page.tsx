@@ -27,7 +27,7 @@ export default async function SettingsPage() {
       <SettingsForm
         email={user.email || ""}
         fullName={userMetadata?.full_name || ""}
-        role={userMetadata?.role || "USER"}
+        role={userMetadata?.role || "MANAGER"}
       />
     </div>
   )

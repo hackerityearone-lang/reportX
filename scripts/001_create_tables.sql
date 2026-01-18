@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS products (
   name TEXT NOT NULL,
   brand TEXT NOT NULL,
   quantity INTEGER NOT NULL DEFAULT 0,
-  min_stock_level INTEGER NOT NULL DEFAULT 10,
+  minimum_stock_level INTEGER NOT NULL DEFAULT 10,
   image_url TEXT,
   price DECIMAL(10, 2) NOT NULL DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS products (
 CREATE TABLE IF NOT EXISTS profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   full_name TEXT,
-  role TEXT NOT NULL DEFAULT 'USER' CHECK (role IN ('USER', 'STOCK_BOSS')),
+  role TEXT NOT NULL DEFAULT 'MANAGER' CHECK (role IN ('MANAGER', 'BOSS')),
+  status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'APPROVED', 'BLOCKED')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -63,21 +64,33 @@ ALTER TABLE stock_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE credits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai_insights ENABLE ROW LEVEL SECURITY;
 
--- Products policies (all authenticated users can view, only STOCK_BOSS can modify)
+-- Products policies (all authenticated users can view, only BOSS can modify schematically)
 CREATE POLICY "Anyone can view products" ON products FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Authenticated users can insert products" ON products FOR INSERT TO authenticated WITH CHECK (true);
-CREATE POLICY "Authenticated users can update products" ON products FOR UPDATE TO authenticated USING (true);
+-- Only MANAGER role can create/update/delete products (business rule)
+CREATE POLICY "Managers can modify products" ON products FOR INSERT TO authenticated WITH CHECK (
+  EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'MANAGER' AND p.status = 'APPROVED')
+);
+CREATE POLICY "Managers can update products" ON products FOR UPDATE TO authenticated USING (
+  EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'MANAGER' AND p.status = 'APPROVED')
+);
+CREATE POLICY "Managers can delete products" ON products FOR DELETE TO authenticated USING (
+  EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'MANAGER' AND p.status = 'APPROVED')
+);
 
 -- Profiles policies
 CREATE POLICY "Users can view own profile" ON profiles FOR SELECT USING (auth.uid() = id);
 CREATE POLICY "Users can insert own profile" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
 CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
 
--- Stock transactions policies
 CREATE POLICY "Users can view all transactions" ON stock_transactions FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Users can insert transactions" ON stock_transactions FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
-
--- Credits policies
+-- Managers can insert stock transactions; anyone can view transactions
+CREATE POLICY "Anyone can view transactions" ON stock_transactions FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Managers can insert transactions" ON stock_transactions FOR INSERT TO authenticated WITH CHECK (
+  auth.uid() = user_id AND EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'MANAGER' AND p.status = 'APPROVED')
+);
+CREATE POLICY "Managers can update own transactions" ON stock_transactions FOR UPDATE TO authenticated USING (
+  auth.uid() = user_id AND EXISTS (SELECT 1 FROM profiles p WHERE p.id = auth.uid() AND p.role = 'MANAGER' AND p.status = 'APPROVED')
+);
 CREATE POLICY "Users can view all credits" ON credits FOR SELECT TO authenticated USING (true);
 CREATE POLICY "Users can insert credits" ON credits FOR INSERT TO authenticated WITH CHECK (true);
 CREATE POLICY "Users can update credits" ON credits FOR UPDATE TO authenticated USING (true);

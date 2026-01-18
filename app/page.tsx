@@ -22,9 +22,9 @@ export default async function HomePage() {
             Modern stock management platform with comprehensive reporting tools. Track inventory, sales, credits, and generate
             detailed reports.
           </p>
-          <Link href="/auth/sign-up">
+          <Link href="/auth/login">
             <Button size="lg" className="text-xl px-8 py-6 bg-primary hover:bg-primary/90">
-              Get Started Now
+              Request Access / Login
             </Button>
           </Link>
         </section>

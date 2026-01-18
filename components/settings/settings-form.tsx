@@ -129,11 +129,9 @@ export function SettingsForm({ email, fullName, role }: SettingsFormProps) {
               <Shield className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <p className="font-medium">{role === "STOCK_BOSS" ? "Stock Boss" : "Umukozi (User)"}</p>
+              <p className="font-medium">{role === "BOSS" ? "Boss" : "Manager"}</p>
               <p className="text-sm text-muted-foreground">
-                {role === "STOCK_BOSS"
-                  ? "Ufite uburenganzira bwose bwo gucunga stock"
-                  : "Ufite uburenganzira bwo gukoresha sisitemu"}
+                {role === "BOSS" ? "Read-only reports and admin view" : "Manage products and daily stock operations"}
               </p>
             </div>
           </div>

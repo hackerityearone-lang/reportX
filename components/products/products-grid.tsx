@@ -30,8 +30,8 @@ export function ProductsGrid({ products }: ProductsGridProps) {
         <CardContent className="py-12">
           <div className="text-center">
             <Beer className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <h3 className="text-lg font-semibold text-foreground mb-2">Nta bicuruzwa urafite</h3>
-            <p className="text-muted-foreground mb-4">Tangira wongereho igicuruzwa cya mbere</p>
+            <h3 className="text-lg font-semibold text-foreground mb-2">No products yet</h3>
+            <p className="text-muted-foreground mb-4">Start by adding your first product</p>
           </div>
         </CardContent>
       </Card>
@@ -44,7 +44,7 @@ export function ProductsGrid({ products }: ProductsGridProps) {
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Shakisha igicuruzwa..."
+          placeholder="Search products..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-10 h-11"
@@ -76,13 +76,13 @@ export function ProductsGrid({ products }: ProductsGridProps) {
                   {/* Status Badge */}
                   {isOutOfStock && (
                     <Badge variant="destructive" className="absolute top-2 right-2">
-                      Birabuze
+                      Out of Stock
                     </Badge>
                   )}
                   {isLowStock && !isOutOfStock && (
                     <Badge variant="outline" className="absolute top-2 right-2 bg-warning/20 border-warning">
                       <AlertTriangle className="h-3 w-3 mr-1" />
-                      Stock Nke
+                      Low Stock
                     </Badge>
                   )}
 
@@ -121,9 +121,15 @@ export function ProductsGrid({ products }: ProductsGridProps) {
                     className={`h-1.5 mt-2 ${isLowStock ? "[&>div]:bg-warning" : ""} ${isOutOfStock ? "[&>div]:bg-destructive" : ""}`}
                   />
 
-                  <div className="mt-3 flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Igiciro:</span>
-                    <span className="font-medium text-foreground">{(product.price ?? 0).toLocaleString()} RWF</span>
+                  <div className="mt-3 space-y-1">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Buying:</span>
+                      <span className="font-medium text-foreground">{(product.price ?? 0).toLocaleString()} RWF</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Selling:</span>
+                      <span className="font-medium text-success">{(product.selling_price ?? 0).toLocaleString()} RWF</span>
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -134,7 +140,7 @@ export function ProductsGrid({ products }: ProductsGridProps) {
 
       {filteredProducts.length === 0 && products.length > 0 && (
         <div className="text-center py-8">
-          <p className="text-muted-foreground">Nta gicuruzwa gihuye na "{search}"</p>
+          <p className="text-muted-foreground">No products match "{search}"</p>
         </div>
       )}
 

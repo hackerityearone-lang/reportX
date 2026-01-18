@@ -162,6 +162,7 @@ export function AdvancedStockOutForm() {
     updateItem(itemId, {
       product_id: productId,
       buying_price: product?.price || 0,
+      selling_price: product?.selling_price || 0, // Auto-populate selling price
     })
   }
 

@@ -491,4 +491,4 @@ export function CreditPaymentManager() {
   )
 }
 
-export default CreditPaymentManager
+export default CreditPaymentManager;

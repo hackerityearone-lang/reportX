@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CreditCard, Loader2, DollarSign, AlertTriangle, CheckCircle2 } from "lucide-react"
+import { CreditCard, Loader2, DollarSign, AlertTriangle, CheckCircle2, Search, X } from "lucide-react"
 import type { Credit } from "@/lib/types"
 import { creditService } from "@/lib/supabase/credit-service"
 
@@ -21,6 +21,9 @@ export function CreditPaymentManager() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("")
 
   // Payment form state
   const [selectedCreditId, setSelectedCreditId] = useState<string | null>(null)
@@ -105,7 +108,15 @@ export function CreditPaymentManager() {
     }
   }
 
-  const filteredCredits = credits.filter((c) => c.status === (activeTab === "pending" ? "PENDING" : activeTab === "partial" ? "PARTIAL" : "PAID"))
+  // Filter credits by search query and status
+  const filteredCredits = credits.filter((c) => {
+    const matchesStatus = c.status === (activeTab === "pending" ? "PENDING" : activeTab === "partial" ? "PARTIAL" : "PAID")
+    const matchesSearch = searchQuery === "" || 
+      c.customer_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.phone?.toLowerCase().includes(searchQuery.toLowerCase())
+    
+    return matchesStatus && matchesSearch
+  })
 
   const renderCreditCard = (credit: CreditWithPayments) => {
     const isSelected = selectedCreditId === credit.id
@@ -129,6 +140,9 @@ export function CreditPaymentManager() {
                 {credit.status}
               </Badge>
             </div>
+            {credit.phone && (
+              <p className="text-xs text-muted-foreground">{credit.phone}</p>
+            )}
             <div className="grid grid-cols-3 gap-4 text-sm">
               <div>
                 <p className="text-muted-foreground">Total Owed</p>
@@ -312,6 +326,26 @@ export function CreditPaymentManager() {
           </div>
         )}
 
+        {/* Search Bar */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <Input
+            type="text"
+            placeholder="Search by customer name or phone..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 pr-10 h-11"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-3">
@@ -353,8 +387,17 @@ export function CreditPaymentManager() {
               </div>
             ) : (
               <div className="text-center py-8">
-                <CheckCircle2 className="h-12 w-12 mx-auto mb-3 text-green-600 opacity-50" />
-                <p className="text-muted-foreground">No pending credits</p>
+                {searchQuery ? (
+                  <>
+                    <Search className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-50" />
+                    <p className="text-muted-foreground">No credits found matching "{searchQuery}"</p>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-12 w-12 mx-auto mb-3 text-green-600 opacity-50" />
+                    <p className="text-muted-foreground">No pending credits</p>
+                  </>
+                )}
               </div>
             )}
           </TabsContent>
@@ -371,8 +414,17 @@ export function CreditPaymentManager() {
               </div>
             ) : (
               <div className="text-center py-8">
-                <CheckCircle2 className="h-12 w-12 mx-auto mb-3 text-green-600 opacity-50" />
-                <p className="text-muted-foreground">No partial credits</p>
+                {searchQuery ? (
+                  <>
+                    <Search className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-50" />
+                    <p className="text-muted-foreground">No credits found matching "{searchQuery}"</p>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-12 w-12 mx-auto mb-3 text-green-600 opacity-50" />
+                    <p className="text-muted-foreground">No partial credits</p>
+                  </>
+                )}
               </div>
             )}
           </TabsContent>
@@ -395,6 +447,9 @@ export function CreditPaymentManager() {
                             PAID
                           </Badge>
                         </div>
+                        {credit.phone && (
+                          <p className="text-xs text-muted-foreground">{credit.phone}</p>
+                        )}
                         <div className="grid grid-cols-3 gap-4 text-sm">
                           <div>
                             <p className="text-muted-foreground">Total Owed</p>
@@ -426,7 +481,14 @@ export function CreditPaymentManager() {
               </div>
             ) : (
               <div className="text-center py-8">
-                <p className="text-muted-foreground">No paid credits</p>
+                {searchQuery ? (
+                  <>
+                    <Search className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-50" />
+                    <p className="text-muted-foreground">No credits found matching "{searchQuery}"</p>
+                  </>
+                ) : (
+                  <p className="text-muted-foreground">No paid credits</p>
+                )}
               </div>
             )}
           </TabsContent>

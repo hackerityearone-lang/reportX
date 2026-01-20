@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,8 +10,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, Plus, Beer } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Loader2, Plus, Beer, Search, X } from "lucide-react"
 import type { Product } from "@/lib/types"
 
 interface StockInFormProps {
@@ -30,7 +30,54 @@ export function StockInForm({ products }: StockInFormProps) {
     notes: "",
   })
 
+  // Product search state
+  const [productSearchQuery, setProductSearchQuery] = useState("")
+  const [selectedProductName, setSelectedProductName] = useState("")
+  const [showProductSearch, setShowProductSearch] = useState(false)
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      if (!target.closest('.product-search-container')) {
+        setShowProductSearch(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   const selectedProduct = products.find((p) => p.id === formData.product_id)
+
+  // Filter products based on search
+  const filteredProducts = products.filter(p => {
+    if (!productSearchQuery) return true
+    const query = productSearchQuery.toLowerCase()
+    return p.name.toLowerCase().includes(query) || 
+           p.brand?.toLowerCase().includes(query)
+  })
+
+  // Get display value for search input
+  const getProductDisplayValue = () => {
+    if (productSearchQuery) {
+      return productSearchQuery
+    }
+    return selectedProductName || ""
+  }
+
+  const handleProductSelect = (product: Product) => {
+    setFormData({ ...formData, product_id: product.id })
+    setSelectedProductName(product.name)
+    setProductSearchQuery("")
+    setShowProductSearch(false)
+  }
+
+  const handleClearProduct = () => {
+    setFormData({ ...formData, product_id: "" })
+    setSelectedProductName("")
+    setProductSearchQuery("")
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -75,6 +122,8 @@ export function StockInForm({ products }: StockInFormProps) {
       quantity: "",
       notes: "",
     })
+    setSelectedProductName("")
+    setProductSearchQuery("")
     router.refresh()
     setIsLoading(false)
 
@@ -107,32 +156,77 @@ export function StockInForm({ products }: StockInFormProps) {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid gap-2">
+          <div className="grid gap-2 product-search-container">
             <Label htmlFor="product">Igicuruzwa *</Label>
-            <Select
-              value={formData.product_id}
-              onValueChange={(value) => {
-                setFormData({
-                  ...formData,
-                  product_id: value,
-                })
-              }}
-            >
-              <SelectTrigger id="product" className="h-12">
-                <SelectValue placeholder="Select product" />
-              </SelectTrigger>
-              <SelectContent>
-                {products.map((product) => (
-                  <SelectItem key={product.id} value={product.id}>
-                    <div className="flex items-center gap-2">
-                      <span>{product.name}</span>
-                      <span className="text-muted-foreground">({product.brand})</span>
-                      <span className="text-xs text-muted-foreground ml-2">Stock: {product.quantity}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="relative">
+              <div className="relative flex gap-1">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  <Input
+                    id="product"
+                    type="text"
+                    placeholder="Search products..."
+                    value={getProductDisplayValue()}
+                    onChange={(e) => {
+                      setProductSearchQuery(e.target.value)
+                      setShowProductSearch(true)
+                    }}
+                    onFocus={() => setShowProductSearch(true)}
+                    className="h-12 pl-9"
+                  />
+                </div>
+                {(selectedProductName || productSearchQuery) && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleClearProduct}
+                    className="h-12 px-3 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+
+              {showProductSearch && filteredProducts.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-lg shadow-lg z-20 max-h-60 overflow-auto">
+                  {filteredProducts.map((product) => (
+                    <button
+                      key={product.id}
+                      type="button"
+                      onClick={() => handleProductSelect(product)}
+                      className="w-full text-left px-4 py-3 hover:bg-secondary transition-colors border-b border-border last:border-0"
+                    >
+                      <div className="flex justify-between items-center gap-2">
+                        <div className="flex-1">
+                          <p className="font-medium">{product.name}</p>
+                          {product.brand && (
+                            <p className="text-xs text-muted-foreground">{product.brand}</p>
+                          )}
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          <Badge 
+                            variant={product.quantity > 10 ? "secondary" : product.quantity > 0 ? "outline" : "destructive"}
+                            className="text-xs"
+                          >
+                            Stock: {product.quantity}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {product.price.toLocaleString()} RWF
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {showProductSearch && filteredProducts.length === 0 && productSearchQuery && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-lg shadow-lg z-20 p-4 text-center text-sm text-muted-foreground">
+                  No products found
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="grid gap-2">
@@ -186,7 +280,7 @@ export function StockInForm({ products }: StockInFormProps) {
             </div>
           )}
 
-          <Button type="submit" size="lg" className="w-full h-12 text-lg" disabled={isLoading}>
+          <Button type="submit" size="lg" className="w-full h-12 text-lg" disabled={isLoading || !formData.product_id}>
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -204,3 +298,5 @@ export function StockInForm({ products }: StockInFormProps) {
     </Card>
   )
 }
+
+export default StockInForm

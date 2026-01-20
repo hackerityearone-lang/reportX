@@ -112,8 +112,7 @@ export function CreditPaymentManager() {
   const filteredCredits = credits.filter((c) => {
     const matchesStatus = c.status === (activeTab === "pending" ? "PENDING" : activeTab === "partial" ? "PARTIAL" : "PAID")
     const matchesSearch = searchQuery === "" || 
-      c.customer_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.phone?.toLowerCase().includes(searchQuery.toLowerCase())
+      c.customer_name?.toLowerCase().includes(searchQuery.toLowerCase())
     
     return matchesStatus && matchesSearch
   })
@@ -140,9 +139,6 @@ export function CreditPaymentManager() {
                 {credit.status}
               </Badge>
             </div>
-            {credit.phone && (
-              <p className="text-xs text-muted-foreground">{credit.phone}</p>
-            )}
             <div className="grid grid-cols-3 gap-4 text-sm">
               <div>
                 <p className="text-muted-foreground">Total Owed</p>
@@ -331,7 +327,7 @@ export function CreditPaymentManager() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
             type="text"
-            placeholder="Search by customer name or phone..."
+            placeholder="Search by customer name..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9 pr-10 h-11"
@@ -447,9 +443,6 @@ export function CreditPaymentManager() {
                             PAID
                           </Badge>
                         </div>
-                        {credit.phone && (
-                          <p className="text-xs text-muted-foreground">{credit.phone}</p>
-                        )}
                         <div className="grid grid-cols-3 gap-4 text-sm">
                           <div>
                             <p className="text-muted-foreground">Total Owed</p>

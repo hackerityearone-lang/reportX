@@ -260,6 +260,205 @@ export const stockOutService = {
   },
 
   /**
+   * Update existing stock out transaction
+   */
+  async updateStockOut(request: {
+    transactionId: string
+    customer?: Partial<Customer>
+    payment_type: "CASH" | "CREDIT"
+    items: StockOutItemInput[]
+  }): Promise<void> {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) throw new Error("Not authenticated")
+
+    // Get the original transaction
+    const { data: originalTransaction, error: fetchError } = await supabase
+      .from("stock_transactions")
+      .select(`
+        *,
+        stock_out_items (
+          id,
+          product_id,
+          quantity
+        )
+      `)
+      .eq("id", request.transactionId)
+      .single()
+
+    if (fetchError) throw new Error(fetchError.message)
+
+    // Restore stock from original transaction
+    for (const item of originalTransaction.stock_out_items || []) {
+      const { data: product } = await supabase
+        .from("products")
+        .select("quantity")
+        .eq("id", item.product_id)
+        .single()
+
+      const restoredQuantity = (product?.quantity || 0) + item.quantity
+      await supabase
+        .from("products")
+        .update({ quantity: restoredQuantity })
+        .eq("id", item.product_id)
+    }
+
+    // Handle customer update/creation
+    let customerId = originalTransaction.customer_id
+
+    if (request.customer && request.customer.name) {
+      // Try to find existing customer by phone
+      if (request.customer.phone) {
+        const { data: existingCustomer } = await supabase
+          .from("customers")
+          .select("id")
+          .eq("phone", request.customer.phone)
+          .maybeSingle()
+
+        if (existingCustomer) {
+          customerId = existingCustomer.id
+        }
+      }
+
+      // Create new customer if not found and name provided
+      if (!customerId) {
+        const { data: newCustomer, error: customerError } = await supabase
+          .from("customers")
+          .insert({
+            user_id: user.id,
+            name: request.customer.name,
+            phone: request.customer.phone || null,
+            email: request.customer.email || null,
+            total_credit: 0,
+            is_archived: false,
+          })
+          .select()
+          .single()
+
+        if (customerError) throw new Error(customerError.message)
+        customerId = newCustomer.id
+      }
+    }
+
+    // Get product prices for calculations
+    const productIds = request.items.map((item) => item.product_id)
+    const { data: products, error: productError } = await supabase
+      .from("products")
+      .select("id, quantity, price")
+      .in("id", productIds)
+
+    if (productError) throw new Error(productError.message)
+    const productMap = new Map(products?.map((p) => [p.id, p]) || [])
+
+    // Validate stock availability for new quantities
+    for (const item of request.items) {
+      const product = productMap.get(item.product_id)
+      if (!product) throw new Error(`Product not found: ${item.product_id}`)
+      if (product.quantity < item.quantity)
+        throw new Error(
+          `Insufficient stock for ${product.id}. Available: ${product.quantity}, Requested: ${item.quantity}`
+        )
+    }
+
+    // Calculate new totals
+    let totalAmount = 0
+    let totalProfit = 0
+
+    for (const item of request.items) {
+      const buyingPrice = item.buying_price || (productMap.get(item.product_id)?.price || 0)
+      const subtotal = item.quantity * item.selling_price
+      const profit = item.quantity * (item.selling_price - buyingPrice)
+
+      totalAmount += subtotal
+      totalProfit += profit
+    }
+
+    // Update transaction
+    const { error: updateError } = await supabase
+      .from("stock_transactions")
+      .update({
+        customer_id: customerId || null,
+        payment_type: request.payment_type,
+        total_amount: totalAmount,
+        total_profit: totalProfit,
+        quantity: request.items.reduce((sum, item) => sum + item.quantity, 0),
+      })
+      .eq("id", request.transactionId)
+
+    if (updateError) throw new Error(updateError.message)
+
+    // Delete old stock out items
+    await supabase
+      .from("stock_out_items")
+      .delete()
+      .eq("transaction_id", request.transactionId)
+
+    // Create new stock out items
+    const itemsToInsert = request.items.map((item) => ({
+      transaction_id: request.transactionId,
+      product_id: item.product_id,
+      quantity: item.quantity,
+      selling_price: item.selling_price,
+      buying_price: item.buying_price || (productMap.get(item.product_id)?.price || 0),
+    }))
+
+    const { error: itemsError } = await supabase.from("stock_out_items").insert(itemsToInsert)
+    if (itemsError) throw new Error(itemsError.message)
+
+    // Deduct new stock quantities
+    for (const item of request.items) {
+      const product = productMap.get(item.product_id)
+      const newQuantity = (product?.quantity || 0) - item.quantity
+
+      await supabase
+        .from("products")
+        .update({ quantity: newQuantity })
+        .eq("id", item.product_id)
+    }
+
+    // Update credit record if payment type changed or amount changed
+    if (request.payment_type === "CREDIT" && customerId) {
+      const { data: existingCredit } = await supabase
+        .from("credits")
+        .select("id")
+        .eq("transaction_id", request.transactionId)
+        .maybeSingle()
+
+      if (existingCredit) {
+        // Update existing credit
+        await supabase
+          .from("credits")
+          .update({
+            amount: totalAmount,
+            amount_owed: totalAmount,
+          })
+          .eq("id", existingCredit.id)
+      } else {
+        // Create new credit if it didn't exist
+        await supabase.from("credits").insert({
+          user_id: user.id,
+          customer_id: customerId,
+          customer_name: request.customer?.name || "Unknown",
+          transaction_id: request.transactionId,
+          amount: totalAmount,
+          amount_owed: totalAmount,
+          amount_paid: 0,
+          status: "PENDING",
+          is_active: true,
+          payment_due_date: null,
+        })
+      }
+    } else if (request.payment_type === "CASH") {
+      // Deactivate credit if payment type changed to CASH
+      await supabase
+        .from("credits")
+        .update({ is_active: false })
+        .eq("transaction_id", request.transactionId)
+    }
+  },
+
+  /**
    * Cancel stock out transaction (soft delete)
    */
   async cancelStockOut(transactionId: string, reason: string): Promise<void> {

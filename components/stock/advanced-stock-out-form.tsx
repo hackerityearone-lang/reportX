@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Trash2, Plus, DollarSign, Package, AlertTriangle, CheckCircle2, User } from "lucide-react"
+import { Loader2, Trash2, Plus, DollarSign, Package, AlertTriangle, CheckCircle2, User, Search } from "lucide-react"
 import type { Product, Customer } from "@/lib/types"
 import { stockOutService } from "@/lib/supabase/stock-out-service"
 import { customerService } from "@/lib/supabase/customer-service"
@@ -42,6 +42,11 @@ export function AdvancedStockOutForm() {
     { id: "1", product_id: "", quantity: 0, selling_price: 0, buying_price: 0, subtotal: 0, profit: 0 },
   ])
   const [notes, setNotes] = useState("")
+
+  // Product search state
+  const [productSearchQueries, setProductSearchQueries] = useState<{ [key: string]: string }>({})
+  const [showProductSearches, setShowProductSearches] = useState<{ [key: string]: boolean }>({})
+  const [selectedProductNames, setSelectedProductNames] = useState<{ [key: string]: string }>({})
 
   // Customer state (now used for both CASH and CREDIT)
   const [includeCustomer, setIncludeCustomer] = useState(false)
@@ -75,6 +80,24 @@ export function AdvancedStockOutForm() {
     }
 
     loadProducts()
+  }, [])
+
+  // Close product search dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      // Check if click is outside any product search dropdown
+      if (!target.closest('.product-search-container')) {
+        setShowProductSearches({})
+      }
+      // Close customer search if clicking outside
+      if (!target.closest('.customer-search-container')) {
+        setShowCustomerSearch(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
   // Load customers
@@ -129,6 +152,16 @@ export function AdvancedStockOutForm() {
   const removeItem = (id: string) => {
     if (items.length > 1) {
       setItems(items.filter((item) => item.id !== id))
+      // Clean up search states
+      const newSearchQueries = { ...productSearchQueries }
+      const newShowSearches = { ...showProductSearches }
+      const newSelectedNames = { ...selectedProductNames }
+      delete newSearchQueries[id]
+      delete newShowSearches[id]
+      delete newSelectedNames[id]
+      setProductSearchQueries(newSearchQueries)
+      setShowProductSearches(newShowSearches)
+      setSelectedProductNames(newSelectedNames)
     }
   }
 
@@ -162,8 +195,34 @@ export function AdvancedStockOutForm() {
     updateItem(itemId, {
       product_id: productId,
       buying_price: product?.price || 0,
-      selling_price: product?.selling_price || 0, // Auto-populate selling price
+      selling_price: product?.selling_price || 0,
     })
+    // Save selected product name and clear search
+    setSelectedProductNames({ ...selectedProductNames, [itemId]: product?.name || "" })
+    setProductSearchQueries({ ...productSearchQueries, [itemId]: "" })
+    setShowProductSearches({ ...showProductSearches, [itemId]: false })
+  }
+
+  // Filter products based on search query
+  const getFilteredProducts = (itemId: string) => {
+    const query = productSearchQueries[itemId]?.toLowerCase() || ""
+    if (!query) return products
+    
+    return products.filter(p => 
+      p.name.toLowerCase().includes(query) ||
+      p.sku?.toLowerCase().includes(query) ||
+      p.category?.toLowerCase().includes(query)
+    )
+  }
+
+  // Get display value for product search input
+  const getProductDisplayValue = (itemId: string) => {
+    // If user is typing, show their search query
+    if (productSearchQueries[itemId]) {
+      return productSearchQueries[itemId]
+    }
+    // Otherwise show selected product name
+    return selectedProductNames[itemId] || ""
   }
 
   // Calculate totals
@@ -204,7 +263,7 @@ export function AdvancedStockOutForm() {
       let customer = selectedCustomer
       if (!customer && includeCustomer && newCustomerName) {
         customer = {
-          id: "", // Will be ignored for creation
+          id: "",
           user_id: "",
           name: newCustomerName,
           phone: newCustomerPhone || null,
@@ -248,6 +307,9 @@ export function AdvancedStockOutForm() {
       setNewCustomerEmail("")
       setIncludeCustomer(false)
       setPaymentType("CASH")
+      setProductSearchQueries({})
+      setShowProductSearches({})
+      setSelectedProductNames({})
 
       // Refresh page after 2 seconds
       setTimeout(() => router.refresh(), 2000)
@@ -298,6 +360,7 @@ export function AdvancedStockOutForm() {
               {items.map((item, index) => {
                 const product = products.find((p) => p.id === item.product_id)
                 const hasError = product && item.quantity > product.quantity
+                const filteredProducts = getFilteredProducts(item.id)
 
                 return (
                   <div
@@ -309,28 +372,99 @@ export function AdvancedStockOutForm() {
                     <div className="flex justify-between items-start gap-4">
                       <div className="flex-1 space-y-3">
                         <div className="grid grid-cols-2 gap-3">
-                          <div>
+                          <div className="relative product-search-container">
                             <Label className="text-sm">Product *</Label>
-                            <Select
-                              value={item.product_id}
-                              onValueChange={(value) => handleProductSelect(item.id, value)}
-                            >
-                              <SelectTrigger className="h-10">
-                                <SelectValue placeholder="Select..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {products.map((p) => (
-                                  <SelectItem key={p.id} value={p.id}>
-                                    <div className="flex gap-2">
-                                      <span>{p.name}</span>
-                                      <Badge variant="secondary" className="text-xs">
-                                        {p.quantity}
-                                      </Badge>
-                                    </div>
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <div className="relative">
+                              <div className="relative flex gap-1">
+                                <div className="relative flex-1">
+                                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                                  <Input
+                                    type="text"
+                                    placeholder="Search products..."
+                                    value={getProductDisplayValue(item.id)}
+                                    onChange={(e) => {
+                                      setProductSearchQueries({ 
+                                        ...productSearchQueries, 
+                                        [item.id]: e.target.value 
+                                      })
+                                      setShowProductSearches({ 
+                                        ...showProductSearches, 
+                                        [item.id]: true 
+                                      })
+                                    }}
+                                    onFocus={() => {
+                                      setShowProductSearches({ 
+                                        ...showProductSearches, 
+                                        [item.id]: true 
+                                      })
+                                    }}
+                                    className="h-10 pl-9"
+                                  />
+                                </div>
+                                {(selectedProductNames[item.id] || productSearchQueries[item.id]) && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setProductSearchQueries({ ...productSearchQueries, [item.id]: "" })
+                                      setSelectedProductNames({ ...selectedProductNames, [item.id]: "" })
+                                      updateItem(item.id, { 
+                                        product_id: "", 
+                                        quantity: 0, 
+                                        selling_price: 0, 
+                                        buying_price: 0 
+                                      })
+                                    }}
+                                    className="h-10 px-3 text-muted-foreground hover:text-foreground"
+                                  >
+                                    ×
+                                  </Button>
+                                )}
+                              </div>
+                              
+                              {showProductSearches[item.id] && filteredProducts.length > 0 && (
+                                <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-lg shadow-lg z-20 max-h-60 overflow-auto">
+                                  {filteredProducts.map((p) => (
+                                    <button
+                                      key={p.id}
+                                      type="button"
+                                      onClick={() => handleProductSelect(item.id, p.id)}
+                                      className="w-full text-left px-4 py-3 hover:bg-secondary transition-colors border-b border-border last:border-0"
+                                    >
+                                      <div className="flex justify-between items-center gap-2">
+                                        <div className="flex-1">
+                                          <p className="font-medium">{p.name}</p>
+                                          {p.sku && (
+                                            <p className="text-xs text-muted-foreground">SKU: {p.sku}</p>
+                                          )}
+                                          {p.category && (
+                                            <p className="text-xs text-muted-foreground">{p.category}</p>
+                                          )}
+                                        </div>
+                                        <div className="flex flex-col items-end gap-1">
+                                          <Badge 
+                                            variant={p.quantity > 10 ? "secondary" : p.quantity > 0 ? "outline" : "destructive"}
+                                            className="text-xs"
+                                          >
+                                            Stock: {p.quantity}
+                                          </Badge>
+                                          <span className="text-xs text-muted-foreground">
+                                            {p.selling_price?.toLocaleString()} RWF
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                              
+                              {showProductSearches[item.id] && filteredProducts.length === 0 && productSearchQueries[item.id] && (
+                                <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-lg shadow-lg z-20 p-4 text-center text-sm text-muted-foreground">
+                                  No products found
+                                </div>
+                              )}
+                            </div>
                           </div>
 
                           <div>
@@ -510,7 +644,7 @@ export function AdvancedStockOutForm() {
                 </div>
               ) : (
                 <>
-                  <div className="space-y-2">
+                  <div className="space-y-2 customer-search-container">
                     <Label className="text-sm">Select Existing Customer</Label>
                     <div className="relative">
                       <Input

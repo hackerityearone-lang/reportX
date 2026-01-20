@@ -153,7 +153,7 @@ export default function StockOutPage() {
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-2 lg:grid-cols-1">
         {/* Stock Out Form */}
         <div>
           <AdvancedStockOutForm />

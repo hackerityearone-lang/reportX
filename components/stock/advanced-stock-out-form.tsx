@@ -209,9 +209,7 @@ export function AdvancedStockOutForm() {
     if (!query) return products
     
     return products.filter(p => 
-      p.name.toLowerCase().includes(query) ||
-      p.sku?.toLowerCase().includes(query) ||
-      p.category?.toLowerCase().includes(query)
+      p.name.toLowerCase().includes(query)
     )
   }
 
@@ -435,12 +433,6 @@ export function AdvancedStockOutForm() {
                                       <div className="flex justify-between items-center gap-2">
                                         <div className="flex-1">
                                           <p className="font-medium">{p.name}</p>
-                                          {p.sku && (
-                                            <p className="text-xs text-muted-foreground">SKU: {p.sku}</p>
-                                          )}
-                                          {p.category && (
-                                            <p className="text-xs text-muted-foreground">{p.category}</p>
-                                          )}
                                         </div>
                                         <div className="flex flex-col items-end gap-1">
                                           <Badge 

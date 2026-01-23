@@ -460,7 +460,7 @@ export function CreditPaymentManager() {
               </SelectContent>
             </Select>
 
-            <Select value={amountFilter} onValueChange={setAmountFilter}>
+            <Select value={amountFilter} onValueChange={(value) => setAmountFilter(value as "all" | "small" | "medium" | "large")}>
               <SelectTrigger className="w-32">
                 <SelectValue />
               </SelectTrigger>

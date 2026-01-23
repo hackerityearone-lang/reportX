@@ -407,7 +407,8 @@ export const reportsService = {
     const { data: allProducts, error: productsError } = await productsQuery
 
     if (productsError) {
-      console.error("ERROR fetching products:", productsError);
+      console.error("ERROR fetching products:", productsError)
+      // Continue with empty products array instead of failing
     }
 
     const lowStock = (allProducts || []).filter(p => {

@@ -33,7 +33,7 @@ export function CustomerDetailsDialog({ customerId, open, onOpenChange }: Custom
     let csvContent = ""
     csvContent += `Customer,,${customer.name}\n`
     csvContent += `Phone,,${customer.phone || ""}\n`
-    csvContent += `Email,,${customer.email || ""}\n`
+    csvContent += `TIN,,${customer.tin_number || ""}\n`
     csvContent += `\n`
     csvContent += `Transactions\n`
     csvContent += `Invoice,Date,Payment,Total,Item,Qty,UnitPrice,Subtotal\n`
@@ -131,7 +131,7 @@ export function CustomerDetailsDialog({ customerId, open, onOpenChange }: Custom
       </head>
       <body>
         <h1>${customer.name}</h1>
-        <p>Phone: ${customer.phone || ''} | Email: ${customer.email || ''}</p>
+        <p>Phone: ${customer.phone || ''} | TIN: ${customer.tin_number || ''}</p>
         <h2>Transactions</h2>
         ${transactionsHtml}
         <h2>Credit History</h2>
@@ -230,9 +230,9 @@ export function CustomerDetailsDialog({ customerId, open, onOpenChange }: Custom
                             <Phone className="h-4 w-4" /> {customer.phone}
                           </span>
                         )}
-                        {customer.email && (
+                        {customer.tin_number && (
                           <span className="flex items-center gap-2 text-muted-foreground">
-                            <Mail className="h-4 w-4" /> {customer.email}
+                            <Mail className="h-4 w-4" /> {customer.tin_number}
                           </span>
                         )}
                       </div>

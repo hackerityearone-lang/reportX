@@ -370,7 +370,7 @@ export function AdvancedStockOutForm({ onTransactionSuccess }: AdvancedStockOutF
           user_id: "",
           name: newCustomerName,
           phone: newCustomerPhone || null,
-          email: newCustomerEmail || null,
+          tin_number: newCustomerTin || null,
           total_credit: 0,
           created_at: "",
           updated_at: "",

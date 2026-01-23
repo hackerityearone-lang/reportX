@@ -73,7 +73,7 @@ export default async function DashboardLayout({
         />
         
         {/* Main Content Area */}
-        <main className="relative min-h-[calc(100vh-4rem)] px-4 lg:px-6 pt-20 pb-28 lg:pt-6 lg:pb-6">
+        <main className="relative min-h-[calc(100vh-4rem)] px-4 lg:px-6 pt-20 pb-6 lg:pt-6 lg:pb-6">
           {/* Content wrapper with subtle card effect */}
           <div className="mx-auto max-w-7xl">
             {children}

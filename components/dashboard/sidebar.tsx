@@ -174,61 +174,9 @@ export function DashboardSidebar({ userRole }: SidebarProps) {
         </div>
       </aside>
 
-      {/* Mobile Bottom Navigation - Icons Only */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/98 dark:bg-slate-950/98 backdrop-blur-lg border-t border-emerald-200 dark:border-slate-800 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
-        {/* First Row - 4 items */}
-        <div className="grid grid-cols-4 gap-1 px-2 pt-2">
-          {navigation.slice(0, 4).map((item) => {
-            const isActive = pathname === item.href
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={cn(
-                  "flex items-center justify-center p-3 rounded-xl transition-all relative",
-                  isActive
-                    ? "bg-emerald-600 text-white shadow-lg shadow-emerald-500/30"
-                    : "text-slate-600 dark:text-slate-400 active:bg-emerald-50 dark:active:bg-slate-800"
-                )}
-              >
-                <item.icon className={cn(
-                  "h-6 w-6",
-                  isActive && "drop-shadow-sm"
-                )} />
-                {isActive && (
-                  <span className="absolute -top-0.5 right-1/2 translate-x-1/2 w-8 h-0.5 bg-emerald-600 rounded-full" />
-                )}
-              </Link>
-            )
-          })}
-        </div>
-        
-        {/* Second Row - remaining items */}
-        <div className="grid grid-cols-4 gap-1 px-2 pb-2 pt-1">
-          {navigation.slice(4).map((item) => {
-            const isActive = pathname === item.href
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={cn(
-                  "flex items-center justify-center p-3 rounded-xl transition-all relative",
-                  isActive
-                    ? "bg-emerald-600 text-white shadow-lg shadow-emerald-500/30"
-                    : "text-slate-600 dark:text-slate-400 active:bg-emerald-50 dark:active:bg-slate-800"
-                )}
-              >
-                <item.icon className={cn(
-                  "h-6 w-6",
-                  isActive && "drop-shadow-sm"
-                )} />
-                {isActive && (
-                  <span className="absolute -top-0.5 right-1/2 translate-x-1/2 w-8 h-0.5 bg-emerald-600 rounded-full" />
-                )}
-              </Link>
-            )
-          })}
-        </div>
+      {/* Mobile Bottom Navigation - Hidden */}
+      <div className="hidden">
+        {/* Mobile navigation removed */}
       </div>
     </>
   )

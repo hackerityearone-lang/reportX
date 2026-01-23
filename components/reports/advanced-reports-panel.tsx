@@ -375,7 +375,7 @@ export function AdvancedReportsPanel() {
             
             {/* DOCUMENT HEADER */}
             <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-8 lg:p-12 text-center space-y-4 print:bg-slate-900 print:p-8">
-              <h2 className="text-3xl lg:text-4xl font-black uppercase tracking-tighter">Kivu Quality Sheet Ltd</h2>
+              <h2 className="text-2xl lg:text-3xl font-black uppercase tracking-tighter">Kivu Quality Sheet Ltd</h2>
               <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest">
                 <Receipt className="h-3 w-3" /> Daily Operations Audit
               </div>
@@ -398,7 +398,7 @@ export function AdvancedReportsPanel() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm min-w-[600px]">
                     <thead>
-                      <tr className="text-slate-400 font-bold uppercase text-[10px] text-left border-b-2 border-slate-100">
+                      <tr className="text-slate-400 font-bold uppercase text-[8px] text-left border-b-2 border-slate-100">
                         <th className="pb-4 px-2">Time</th>
                         <th className="pb-4 px-2">Customer</th>
                         <th className="pb-4 px-2">Items Detailed</th>
@@ -542,7 +542,7 @@ export function AdvancedReportsPanel() {
       {weeklyReport && (
         <div id="printable-report" className="bg-white border shadow-2xl rounded-3xl overflow-hidden print:shadow-none print:border-none">
           <div className="bg-slate-900 text-white p-12 text-center space-y-4 print:bg-slate-900 print:p-8">
-            <h2 className="text-4xl font-black uppercase tracking-tighter">Kivu Quality Sheet Ltd</h2>
+            <h2 className="text-3xl font-black uppercase tracking-tighter">Kivu Quality Sheet Ltd</h2>
             <div className="inline-flex items-center gap-2 bg-white/10 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest">
               <Receipt className="h-3 w-3" /> Weekly Operations Report
             </div>
@@ -559,19 +559,19 @@ export function AdvancedReportsPanel() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               <div className="bg-emerald-50 p-6 rounded-xl border-2 border-emerald-200">
                 <p className="text-xs font-bold text-emerald-600 uppercase mb-2">Total Cash</p>
-                <p className="text-3xl font-black">{formatAmount(weeklyReport.totalCash)} RWF</p>
+                <p className="text-lg font-black">{formatAmount(weeklyReport.totalCash)} RWF</p>
               </div>
               <div className="bg-amber-50 p-6 rounded-xl border-2 border-amber-200">
                 <p className="text-xs font-bold text-amber-600 uppercase mb-2">Total Credit</p>
-                <p className="text-3xl font-black">{formatAmount(weeklyReport.totalCredit)} RWF</p>
+                <p className="text-lg font-black">{formatAmount(weeklyReport.totalCredit)} RWF</p>
               </div>
               <div className="bg-blue-50 p-6 rounded-xl border-2 border-blue-200">
                 <p className="text-xs font-bold text-blue-600 uppercase mb-2">Net Profit</p>
-                <p className="text-3xl font-black">{formatAmount(weeklyReport.totalProfit)} RWF</p>
+                <p className="text-lg font-black">{formatAmount(weeklyReport.totalProfit)} RWF</p>
               </div>
               <div className="bg-purple-50 p-6 rounded-xl border-2 border-purple-200">
                 <p className="text-xs font-bold text-purple-600 uppercase mb-2">Units Sold</p>
-                <p className="text-3xl font-black">{weeklyReport.totalUnits}</p>
+                <p className="text-lg font-black">{weeklyReport.totalUnits}</p>
               </div>
             </div>
 
@@ -630,19 +630,19 @@ export function AdvancedReportsPanel() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               <div className="bg-emerald-50 p-6 rounded-xl border-2 border-emerald-200">
                 <p className="text-xs font-bold text-emerald-600 uppercase mb-2">Total Cash</p>
-                <p className="text-3xl font-black">{formatAmount(monthlyReport.totalCash)} RWF</p>
+                <p className="text-xl font-black">{formatAmount(monthlyReport.totalCash)} RWF</p>
               </div>
               <div className="bg-amber-50 p-6 rounded-xl border-2 border-amber-200">
                 <p className="text-xs font-bold text-amber-600 uppercase mb-2">Total Credit</p>
-                <p className="text-3xl font-black">{formatAmount(monthlyReport.totalCredit)} RWF</p>
+                <p className="text-xl font-black">{formatAmount(monthlyReport.totalCredit)} RWF</p>
               </div>
               <div className="bg-blue-50 p-6 rounded-xl border-2 border-blue-200">
                 <p className="text-xs font-bold text-blue-600 uppercase mb-2">Net Profit</p>
-                <p className="text-3xl font-black">{formatAmount(monthlyReport.totalProfit)} RWF</p>
+                <p className="text-xl font-black">{formatAmount(monthlyReport.totalProfit)} RWF</p>
               </div>
               <div className="bg-purple-50 p-6 rounded-xl border-2 border-purple-200">
                 <p className="text-xs font-bold text-purple-600 uppercase mb-2">Units Sold</p>
-                <p className="text-3xl font-black">{monthlyReport.totalUnits}</p>
+                <p className="text-xl font-black">{monthlyReport.totalUnits}</p>
               </div>
             </div>
 

@@ -6,6 +6,10 @@ export type TransactionType = "IN" | "OUT"
 
 export type PaymentType = "CASH" | "CREDIT"
 
+export type UnitType = "box" | "piece"
+
+export type SaleMode = "wholesale" | "retail"
+
 export type CreditStatus = "PENDING" | "PARTIAL" | "PAID"
 
 export type InsightType = "LOW_STOCK" | "UNUSUAL_ACTIVITY" | "RESTOCK" | "CREDIT_RISK" | "SALES_TREND"
@@ -20,7 +24,12 @@ export interface Product {
   min_stock_level: number // Updated from minimum_stock_level
   image_url: string | null
   price: number // Buying/cost price
-  selling_price: number // NEW: Selling/retail price
+  selling_price: number // NEW: Selling price per piece
+  box_selling_price: number | null // NEW: Selling price per box (for box products)
+  unit_type: UnitType // NEW: box or piece
+  pieces_per_box: number | null // NEW: pieces per box (null for non-box items)
+  allow_retail_sales: boolean // NEW: whether retail sales are allowed
+  remaining_pieces: number // NEW: remaining pieces from opened boxes
   created_at: string
   updated_at: string
   user_id?: string
@@ -41,7 +50,7 @@ export interface Customer {
   user_id: string
   name: string
   phone: string | null
-  email: string | null
+  tin_number: string | null
   total_credit: number
   created_at: string
   updated_at: string
@@ -83,9 +92,17 @@ export interface StockTransaction {
   is_cancelled: boolean
   cancelled_at: string | null
   cancelled_reason: string | null
+  // Soft delete fields
+  is_deleted: boolean
+  deleted_at: string | null
+  deleted_by: string | null
+  delete_reason: string | null
+  unit_sold: UnitType // NEW: unit type sold (box or piece)
   product?: Product
   customer?: Customer
   items?: StockOutItem[] // For multiple items in one sale
+  stock_out_items?: StockOutItem[] // Alternative name for items
+  total_amount?: number // For compatibility
 }
 
 export interface Credit {

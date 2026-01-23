@@ -8,6 +8,7 @@ const supabase = createClient()
 export interface StockOutItemInput {
   product_id: string
   quantity: number
+  unit_type: 'pieces' | 'boxes'
   selling_price: number
   buying_price?: number
 }
@@ -35,7 +36,7 @@ export const stockOutService = {
     const productIds = request.items.map((item) => item.product_id)
     const { data: products, error: productError } = await supabase
       .from("products")
-      .select("id, quantity, price")
+      .select("id, quantity, price, unit_type, pieces_per_box, remaining_pieces")
       .in("id", productIds)
 
     if (productError) throw new Error(productError.message)
@@ -46,10 +47,33 @@ export const stockOutService = {
     for (const item of request.items) {
       const product = productMap.get(item.product_id)
       if (!product) throw new Error(`Product not found: ${item.product_id}`)
-      if (product.quantity < item.quantity)
-        throw new Error(
-          `Insufficient stock for ${product.id}. Available: ${product.quantity}, Requested: ${item.quantity}`
-        )
+      
+      // For box products, check based on unit type
+      if (product.unit_type === 'box' && product.pieces_per_box) {
+        if (item.unit_type === 'pieces') {
+          // Selling pieces - check total available pieces
+          const totalPieces = (product.quantity * product.pieces_per_box) + (product.remaining_pieces || 0)
+          if (item.quantity > totalPieces) {
+            throw new Error(
+              `Insufficient stock for ${product.id}. Available: ${totalPieces} pieces, Requested: ${item.quantity} pieces`
+            )
+          }
+        } else {
+          // Selling boxes - check box quantity
+          if (item.quantity > product.quantity) {
+            throw new Error(
+              `Insufficient stock for ${product.id}. Available: ${product.quantity} boxes, Requested: ${item.quantity} boxes`
+            )
+          }
+        }
+      } else {
+        // Regular product - check quantity
+        if (item.quantity > product.quantity) {
+          throw new Error(
+            `Insufficient stock for ${product.id}. Available: ${product.quantity}, Requested: ${item.quantity}`
+          )
+        }
+      }
     }
 
     // Create or use existing customer (for BOTH cash and credit now)
@@ -93,9 +117,20 @@ export const stockOutService = {
     let totalProfit = 0
 
     for (const item of request.items) {
-      const buyingPrice = item.buying_price || (productMap.get(item.product_id)?.price || 0)
+      const product = productMap.get(item.product_id)
+      const buyingPrice = item.buying_price || (product?.price || 0)
       const subtotal = item.quantity * item.selling_price
-      const profit = item.quantity * (item.selling_price - buyingPrice)
+      
+      // Calculate profit based on unit type
+      let profit = 0
+      if (product?.unit_type === 'box' && product.pieces_per_box && item.unit_type === 'pieces') {
+        // Selling pieces - use per-piece buying price
+        const buyingPricePerPiece = buyingPrice / product.pieces_per_box
+        profit = item.quantity * (item.selling_price - buyingPricePerPiece)
+      } else {
+        // Selling boxes or regular products - use full buying price
+        profit = item.quantity * (item.selling_price - buyingPrice)
+      }
 
       totalAmount += subtotal
       totalProfit += profit
@@ -122,13 +157,24 @@ export const stockOutService = {
     if (transactionError) throw new Error(transactionError.message)
 
     // Create stock out items
-    const itemsToInsert = request.items.map((item) => ({
-      transaction_id: transaction.id,
-      product_id: item.product_id,
-      quantity: item.quantity,
-      selling_price: item.selling_price,
-      buying_price: item.buying_price || (productMap.get(item.product_id)?.price || 0),
-    }))
+    const itemsToInsert = request.items.map((item) => {
+      const product = productMap.get(item.product_id)
+      const baseBuyingPrice = item.buying_price || (product?.price || 0)
+      
+      // Calculate per-unit buying price based on unit type
+      let buyingPricePerUnit = baseBuyingPrice
+      if (product?.unit_type === 'box' && product.pieces_per_box && item.unit_type === 'pieces') {
+        buyingPricePerUnit = baseBuyingPrice / product.pieces_per_box
+      }
+      
+      return {
+        transaction_id: transaction.id,
+        product_id: item.product_id,
+        quantity: item.quantity,
+        selling_price: item.selling_price,
+        buying_price: buyingPricePerUnit,
+      }
+    })
 
     const { error: itemsError } = await supabase.from("stock_out_items").insert(itemsToInsert)
 
@@ -137,9 +183,30 @@ export const stockOutService = {
     // Deduct stock from products
     for (const item of request.items) {
       const product = productMap.get(item.product_id)
-      const newQuantity = (product?.quantity || 0) - item.quantity
-
-      await supabase.from("products").update({ quantity: newQuantity }).eq("id", item.product_id)
+      
+      if (product?.unit_type === 'box' && product.pieces_per_box && item.unit_type === 'pieces') {
+        // Selling pieces from box product
+        const currentRemaining = product.remaining_pieces || 0
+        let piecesFromRemaining = Math.min(item.quantity, currentRemaining)
+        let piecesStillNeeded = item.quantity - piecesFromRemaining
+        let boxesToOpen = piecesStillNeeded > 0 ? Math.ceil(piecesStillNeeded / product.pieces_per_box) : 0
+        let finalRemainingPieces = currentRemaining - piecesFromRemaining
+        
+        if (boxesToOpen > 0) {
+          finalRemainingPieces += (boxesToOpen * product.pieces_per_box) - piecesStillNeeded
+        }
+        
+        const newBoxQuantity = product.quantity - boxesToOpen
+        
+        await supabase.from("products").update({ 
+          quantity: newBoxQuantity,
+          remaining_pieces: finalRemainingPieces
+        }).eq("id", item.product_id)
+      } else {
+        // Regular product or selling whole boxes
+        const newQuantity = (product?.quantity || 0) - item.quantity
+        await supabase.from("products").update({ quantity: newQuantity }).eq("id", item.product_id)
+      }
     }
 
     // Create credit record ONLY if payment type is CREDIT
@@ -166,7 +233,7 @@ export const stockOutService = {
   /**
    * Get all stock out transactions - FIXED WITH PROPER PRODUCT JOINS
    */
-  async getStockOuts(filters?: { startDate?: Date; endDate?: Date; customerId?: string }): Promise<StockTransaction[]> {
+  async getStockOuts(filters?: { startDate?: Date; endDate?: Date; customerId?: string; includeDeleted?: boolean }): Promise<StockTransaction[]> {
     let query = supabase
       .from("stock_transactions")
       .select(
@@ -191,7 +258,7 @@ export const stockOutService = {
         id,
         name,
         phone,
-        email
+        tin_number
       ),
       products (
         id,
@@ -201,6 +268,7 @@ export const stockOutService = {
     `
       )
       .eq("type", "OUT")
+      .eq("is_deleted", filters?.includeDeleted || false)
 
     if (filters?.startDate) {
       query = query.gte("created_at", filters.startDate.toISOString())
@@ -248,7 +316,7 @@ export const stockOutService = {
         id,
         name,
         phone,
-        email
+        tin_number
       )
     `
       )
@@ -345,7 +413,7 @@ export const stockOutService = {
     const productIds = request.items.map((item) => item.product_id)
     const { data: products, error: productError } = await supabase
       .from("products")
-      .select("id, quantity, price")
+      .select("id, quantity, price, unit_type, pieces_per_box, remaining_pieces")
       .in("id", productIds)
 
     if (productError) throw new Error(productError.message)
@@ -355,10 +423,33 @@ export const stockOutService = {
     for (const item of request.items) {
       const product = productMap.get(item.product_id)
       if (!product) throw new Error(`Product not found: ${item.product_id}`)
-      if (product.quantity < item.quantity)
-        throw new Error(
-          `Insufficient stock for ${product.id}. Available: ${product.quantity}, Requested: ${item.quantity}`
-        )
+      
+      // For box products, check based on unit type
+      if (product.unit_type === 'box' && product.pieces_per_box) {
+        if (item.unit_type === 'pieces') {
+          // Selling pieces - check total available pieces
+          const totalPieces = (product.quantity * product.pieces_per_box) + (product.remaining_pieces || 0)
+          if (item.quantity > totalPieces) {
+            throw new Error(
+              `Insufficient stock for ${product.id}. Available: ${totalPieces} pieces, Requested: ${item.quantity} pieces`
+            )
+          }
+        } else {
+          // Selling boxes - check box quantity
+          if (item.quantity > product.quantity) {
+            throw new Error(
+              `Insufficient stock for ${product.id}. Available: ${product.quantity} boxes, Requested: ${item.quantity} boxes`
+            )
+          }
+        }
+      } else {
+        // Regular product - check quantity
+        if (item.quantity > product.quantity) {
+          throw new Error(
+            `Insufficient stock for ${product.id}. Available: ${product.quantity}, Requested: ${item.quantity}`
+          )
+        }
+      }
     }
 
     // Calculate new totals
@@ -366,9 +457,20 @@ export const stockOutService = {
     let totalProfit = 0
 
     for (const item of request.items) {
-      const buyingPrice = item.buying_price || (productMap.get(item.product_id)?.price || 0)
+      const product = productMap.get(item.product_id)
+      const buyingPrice = item.buying_price || (product?.price || 0)
       const subtotal = item.quantity * item.selling_price
-      const profit = item.quantity * (item.selling_price - buyingPrice)
+      
+      // Calculate profit based on unit type
+      let profit = 0
+      if (product?.unit_type === 'box' && product.pieces_per_box && item.unit_type === 'pieces') {
+        // Selling pieces - use per-piece buying price
+        const buyingPricePerPiece = buyingPrice / product.pieces_per_box
+        profit = item.quantity * (item.selling_price - buyingPricePerPiece)
+      } else {
+        // Selling boxes or regular products - use full buying price
+        profit = item.quantity * (item.selling_price - buyingPrice)
+      }
 
       totalAmount += subtotal
       totalProfit += profit
@@ -395,13 +497,24 @@ export const stockOutService = {
       .eq("transaction_id", request.transactionId)
 
     // Create new stock out items
-    const itemsToInsert = request.items.map((item) => ({
-      transaction_id: request.transactionId,
-      product_id: item.product_id,
-      quantity: item.quantity,
-      selling_price: item.selling_price,
-      buying_price: item.buying_price || (productMap.get(item.product_id)?.price || 0),
-    }))
+    const itemsToInsert = request.items.map((item) => {
+      const product = productMap.get(item.product_id)
+      const baseBuyingPrice = item.buying_price || (product?.price || 0)
+      
+      // Calculate per-unit buying price based on unit type
+      let buyingPricePerUnit = baseBuyingPrice
+      if (product?.unit_type === 'box' && product.pieces_per_box && item.unit_type === 'pieces') {
+        buyingPricePerUnit = baseBuyingPrice / product.pieces_per_box
+      }
+      
+      return {
+        transaction_id: request.transactionId,
+        product_id: item.product_id,
+        quantity: item.quantity,
+        selling_price: item.selling_price,
+        buying_price: buyingPricePerUnit,
+      }
+    })
 
     const { error: itemsError } = await supabase.from("stock_out_items").insert(itemsToInsert)
     if (itemsError) throw new Error(itemsError.message)
@@ -409,12 +522,36 @@ export const stockOutService = {
     // Deduct new stock quantities
     for (const item of request.items) {
       const product = productMap.get(item.product_id)
-      const newQuantity = (product?.quantity || 0) - item.quantity
-
-      await supabase
-        .from("products")
-        .update({ quantity: newQuantity })
-        .eq("id", item.product_id)
+      
+      if (product?.unit_type === 'box' && product.pieces_per_box && item.unit_type === 'pieces') {
+        // Selling pieces from box product
+        const currentRemaining = product.remaining_pieces || 0
+        let piecesFromRemaining = Math.min(item.quantity, currentRemaining)
+        let piecesStillNeeded = item.quantity - piecesFromRemaining
+        let boxesToOpen = piecesStillNeeded > 0 ? Math.ceil(piecesStillNeeded / product.pieces_per_box) : 0
+        let finalRemainingPieces = currentRemaining - piecesFromRemaining
+        
+        if (boxesToOpen > 0) {
+          finalRemainingPieces += (boxesToOpen * product.pieces_per_box) - piecesStillNeeded
+        }
+        
+        const newBoxQuantity = product.quantity - boxesToOpen
+        
+        await supabase
+          .from("products")
+          .update({ 
+            quantity: newBoxQuantity,
+            remaining_pieces: finalRemainingPieces
+          })
+          .eq("id", item.product_id)
+      } else {
+        // Regular product or selling whole boxes
+        const newQuantity = (product?.quantity || 0) - item.quantity
+        await supabase
+          .from("products")
+          .update({ quantity: newQuantity })
+          .eq("id", item.product_id)
+      }
     }
 
     // Update credit record if payment type changed or amount changed
@@ -459,55 +596,98 @@ export const stockOutService = {
   },
 
   /**
-   * Cancel stock out transaction (soft delete)
+   * Safe delete transaction with proper stock restoration
    */
-  async cancelStockOut(transactionId: string, reason: string): Promise<void> {
+  async safeDeleteTransaction(transactionId: string, reason: string): Promise<void> {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) throw new Error("Not authenticated")
+
+    // Get transaction with all items for proper stock restoration
     const { data: transaction, error: fetchError } = await supabase
       .from("stock_transactions")
-      .select("*")
+      .select(`
+        *,
+        stock_out_items (
+          id,
+          product_id,
+          quantity,
+          products (
+            id,
+            unit_type,
+            pieces_per_box,
+            quantity,
+            remaining_pieces
+          )
+        )
+      `)
       .eq("id", transactionId)
+      .eq("is_deleted", false)
       .single()
 
     if (fetchError) throw new Error(fetchError.message)
+    if (!transaction) throw new Error("Transaction not found or already deleted")
 
-    // Restore stock for all products
-    const { data: items, error: itemsError } = await supabase
-      .from("stock_out_items")
-      .select("product_id, quantity")
-      .eq("transaction_id", transactionId)
+    // Restore stock for all items with proper box/piece logic
+    for (const item of transaction.stock_out_items || []) {
+      const product = item.products
+      if (!product) continue
 
-    if (itemsError) throw new Error(itemsError.message)
-
-    for (const item of items || []) {
-      const { data: product } = await supabase
-        .from("products")
-        .select("quantity")
-        .eq("id", item.product_id)
-        .single()
-
-      const newQuantity = (product?.quantity || 0) + item.quantity
-      await supabase.from("products").update({ quantity: newQuantity }).eq("id", item.product_id)
+      if (product.unit_type === 'box' && product.pieces_per_box) {
+        // For box products, restore pieces to remaining_pieces first
+        const currentRemaining = product.remaining_pieces || 0
+        const newRemainingPieces = currentRemaining + item.quantity
+        
+        // Convert excess pieces back to boxes if we have a full box worth
+        const boxesToAdd = Math.floor(newRemainingPieces / product.pieces_per_box)
+        const finalRemainingPieces = newRemainingPieces % product.pieces_per_box
+        
+        await supabase
+          .from("products")
+          .update({ 
+            quantity: product.quantity + boxesToAdd,
+            remaining_pieces: finalRemainingPieces
+          })
+          .eq("id", item.product_id)
+      } else {
+        // Regular product - simple quantity restoration
+        await supabase
+          .from("products")
+          .update({ quantity: product.quantity + item.quantity })
+          .eq("id", item.product_id)
+      }
     }
 
-    // Update transaction status
+    // Soft delete the transaction
     const { error: updateError } = await supabase
       .from("stock_transactions")
       .update({
+        is_deleted: true,
+        deleted_at: new Date().toISOString(),
+        deleted_by: user.id,
+        cancelled_reason: reason,
         is_cancelled: true,
         cancelled_at: new Date().toISOString(),
-        cancelled_reason: reason,
       })
       .eq("id", transactionId)
 
     if (updateError) throw new Error(updateError.message)
 
-    // Deactivate related credit (only if it was a credit transaction)
+    // Deactivate related credits
     if (transaction.customer_id && transaction.payment_type === "CREDIT") {
       await supabase
         .from("credits")
-        .update({ is_active: false })
+        .delete()
         .eq("transaction_id", transactionId)
     }
+  },
+
+  /**
+   * Cancel stock out transaction (legacy method - kept for compatibility)
+   */
+  async cancelStockOut(transactionId: string, reason: string): Promise<void> {
+    return this.safeDeleteTransaction(transactionId, reason)
   },
 
   /**
@@ -529,7 +709,7 @@ export const stockOutService = {
       .from("stock_transactions")
       .select("payment_type, total_amount, total_profit, quantity")
       .eq("type", "OUT")
-      .eq("is_cancelled", false)
+      .eq("is_deleted", false)
       .gte("created_at", startOfDay.toISOString())
       .lte("created_at", endOfDay.toISOString())
 

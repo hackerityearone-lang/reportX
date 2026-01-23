@@ -1,6 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
 import { ProductsGrid } from "@/components/products/products-grid"
-import { AddProductDialog } from "@/components/products/add-product-dialog"
 import { Beer } from "lucide-react"
 
 export default async function ProductsPage() {
@@ -11,7 +10,11 @@ export default async function ProductsPage() {
 
   if (!user) return null
 
-  const { data: products } = await supabase.from("products").select("*").order("name", { ascending: true })
+  const { data: products } = await supabase
+    .from("products")
+    .select("*")
+    .eq("is_archived", false)
+    .order("name", { ascending: true })
 
   return (
     <div className="space-y-6 pb-20 lg:pb-6">
@@ -20,14 +23,13 @@ export default async function ProductsPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Beer className="h-7 w-7 text-primary" />
-            Ibicuruzwa (Products)
+            Products
           </h1>
-          <p className="text-muted-foreground">Gucunga ibicuruzwa byawe byose</p>
+          <p className="text-muted-foreground">Manage your product inventory</p>
         </div>
-        <AddProductDialog />
       </div>
 
-      {/* Products Grid */}
+      {/* Products Grid - now includes add product functionality */}
       <ProductsGrid products={products || []} />
     </div>
   )

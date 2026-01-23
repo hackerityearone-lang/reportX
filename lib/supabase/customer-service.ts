@@ -12,9 +12,9 @@ export const customerService = {
   async getCustomers(filters?: { archived?: boolean }): Promise<Customer[]> {
     let query = supabase.from("customers").select("*")
 
-    if (filters?.archived !== undefined) {
-      query = query.eq("is_archived", filters.archived)
-    }
+    // Default to showing only non-archived customers
+    const showArchived = filters?.archived ?? false
+    query = query.eq("is_archived", showArchived)
 
     const { data, error } = await query.order("created_at", { ascending: false })
 
@@ -46,7 +46,7 @@ export const customerService = {
     const { data, error } = await supabase
       .from("customers")
       .select("*")
-      .or(`name.ilike.%${query}%,phone.ilike.%${query}%`)
+      .or(`name.ilike.%${query}%,phone.ilike.%${query}%,tin_number.ilike.%${query}%`)
       .eq("is_archived", false)
       .limit(10)
 
@@ -69,7 +69,7 @@ export const customerService = {
         user_id: user.id,
         name: customer.name,
         phone: customer.phone || null,
-        email: customer.email || null,
+        tin_number: customer.tin_number || null,
         total_credit: 0,
         is_archived: false,
       })
@@ -89,7 +89,7 @@ export const customerService = {
       .update({
         name: updates.name,
         phone: updates.phone,
-        email: updates.email,
+        tin_number: updates.tin_number,
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)

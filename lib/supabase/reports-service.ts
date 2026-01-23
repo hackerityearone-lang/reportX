@@ -65,6 +65,7 @@ export const reportsService = {
       .from("stock_transactions")
       .select("payment_type, total_amount, total_profit, quantity")
       .eq("type", "OUT")
+      .eq("is_deleted", false)
       .gte("created_at", start.toISOString())
       .lte("created_at", end.toISOString())
     
@@ -86,7 +87,7 @@ export const reportsService = {
     })
 
     // Build products query
-    let productsQuery = supabase.from("products").select("quantity, price")
+    let productsQuery = supabase.from("products").select("quantity, price").eq("is_archived", false)
     
     // Filter logic for products
     if (managerId) {
@@ -129,6 +130,7 @@ export const reportsService = {
       .from("stock_transactions")
       .select("created_at, payment_type, total_amount, total_profit, quantity")
       .eq("type", "OUT")
+      .eq("is_deleted", false)
       .gte("created_at", startOfWeek.toISOString())
       .lte("created_at", endOfWeek.toISOString())
       .order("created_at")
@@ -218,6 +220,7 @@ export const reportsService = {
       .from("stock_transactions")
       .select("created_at, payment_type, total_amount, total_profit, quantity")
       .eq("type", "OUT")
+      .eq("is_deleted", false)
       .gte("created_at", startOfMonth.toISOString())
       .lte("created_at", endOfMonth.toISOString())
       .order("created_at")
@@ -338,11 +341,13 @@ export const reportsService = {
         stock_out_items(
           id, 
           quantity, 
-          products(id, name)
+          products!inner(id, name)
         ),
         credits(id, is_paid, status)
       `)
       .eq("type", "OUT")
+      .eq("is_deleted", false)
+      .eq("stock_out_items.products.is_archived", false)
       .gte("created_at", start.toISOString())
       .lte("created_at", end.toISOString())
       .order('created_at', { ascending: false })
@@ -368,8 +373,9 @@ export const reportsService = {
     // 2. Fetch Stock In
     let additionsQuery = supabase
       .from("stock_transactions")
-      .select(`id, created_at, quantity, total_amount, products(id, name)`)
+      .select(`id, created_at, quantity, total_amount, products!inner(id, name)`)
       .eq("type", "IN")
+      .eq("products.is_archived", false)
       .gte("created_at", start.toISOString())
       .lte("created_at", end.toISOString())
     
@@ -429,6 +435,7 @@ export const reportsService = {
       .from("stock_transactions")
       .select("payment_type, total_amount, total_profit, quantity")
       .eq("type", "OUT")
+      .eq("is_deleted", false)
       .gte("created_at", today.toISOString())
       .lte("created_at", endOfDay.toISOString())
     

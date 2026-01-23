@@ -12,7 +12,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, Trash2, Plus, DollarSign, Package, AlertTriangle, CheckCircle2, User, Search } from "lucide-react"
-import type { Product, Customer } from "@/lib/types"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import type { Product, Customer, UnitType, SaleMode } from "@/lib/types"
 import { stockOutService } from "@/lib/supabase/stock-out-service"
 import { customerService } from "@/lib/supabase/customer-service"
 import { createClient } from "@/lib/supabase/client"
@@ -21,13 +31,18 @@ interface AdvancedStockOutItem {
   id: string
   product_id: string
   quantity: number
+  unit_sold: UnitType
   selling_price: number
   buying_price: number
   subtotal: number
   profit: number
 }
 
-export function AdvancedStockOutForm() {
+interface AdvancedStockOutFormProps {
+  onTransactionSuccess?: () => void
+}
+
+export function AdvancedStockOutForm({ onTransactionSuccess }: AdvancedStockOutFormProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingProducts, setIsLoadingProducts] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -38,8 +53,9 @@ export function AdvancedStockOutForm() {
 
   // Form state
   const [paymentType, setPaymentType] = useState<"CASH" | "CREDIT">("CASH")
+  const [saleMode, setSaleMode] = useState<SaleMode>("retail")
   const [items, setItems] = useState<AdvancedStockOutItem[]>([
-    { id: "1", product_id: "", quantity: 0, selling_price: 0, buying_price: 0, subtotal: 0, profit: 0 },
+    { id: "1", product_id: "", quantity: 0, unit_sold: "piece", selling_price: 0, buying_price: 0, subtotal: 0, profit: 0 },
   ])
   const [notes, setNotes] = useState("")
 
@@ -54,9 +70,11 @@ export function AdvancedStockOutForm() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [newCustomerName, setNewCustomerName] = useState("")
   const [newCustomerPhone, setNewCustomerPhone] = useState("")
-  const [newCustomerEmail, setNewCustomerEmail] = useState("")
+  const [newCustomerTin, setNewCustomerTin] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [showCustomerSearch, setShowCustomerSearch] = useState(false)
+  const [showCreditConfirmation, setShowCreditConfirmation] = useState(false)
+  const [existingCreditAmount, setExistingCreditAmount] = useState(0)
 
   // Load products on mount
   useEffect(() => {
@@ -67,6 +85,7 @@ export function AdvancedStockOutForm() {
         const { data, error } = await supabase
           .from("products")
           .select("*")
+          .eq("is_archived", false)
           .order("name")
         
         if (error) throw error
@@ -127,12 +146,20 @@ export function AdvancedStockOutForm() {
   // Search customers
   useEffect(() => {
     const searchCustomers = async () => {
-      if (searchQuery.length > 2) {
+      if (searchQuery.length >= 2) {
         try {
           const results = await customerService.searchCustomers(searchQuery)
           setCustomers(results)
         } catch (err) {
           console.error("Search failed:", err)
+        }
+      } else if (searchQuery.length === 0) {
+        // Load all customers when search is cleared
+        try {
+          const allCustomers = await customerService.getCustomers()
+          setCustomers(allCustomers)
+        } catch (err) {
+          console.error("Failed to load customers:", err)
         }
       }
     }
@@ -145,7 +172,7 @@ export function AdvancedStockOutForm() {
     const newId = (Math.max(...items.map((i) => parseInt(i.id) || 0), 0) + 1).toString()
     setItems([
       ...items,
-      { id: newId, product_id: "", quantity: 0, selling_price: 0, buying_price: 0, subtotal: 0, profit: 0 },
+      { id: newId, product_id: "", quantity: 0, unit_sold: "piece", selling_price: 0, buying_price: 0, subtotal: 0, profit: 0 },
     ])
   }
 
@@ -172,12 +199,28 @@ export function AdvancedStockOutForm() {
 
         const product = products.find((p) => p.id === (updates.product_id || item.product_id))
         const quantity = updates.quantity !== undefined ? updates.quantity : item.quantity
+        const unitSold = updates.unit_sold !== undefined ? updates.unit_sold : item.unit_sold
         const sellingPrice = updates.selling_price !== undefined ? updates.selling_price : item.selling_price
         const buyingPrice =
           updates.buying_price !== undefined ? updates.buying_price : updates.product_id ? product?.price || 0 : item.buying_price
 
-        const subtotal = quantity * sellingPrice
-        const profit = quantity * (sellingPrice - buyingPrice)
+        // Calculate subtotal and profit based on unit type
+        let subtotal = quantity * sellingPrice
+        let profit = quantity * (sellingPrice - buyingPrice)
+        
+        // For box products, adjust calculations based on unit sold
+        if (product?.unit_type === "box" && product.pieces_per_box) {
+          if (unitSold === "box") {
+            // Selling whole boxes - use box price or calculate from piece price
+            const boxPrice = product.box_selling_price || (product.selling_price * product.pieces_per_box)
+            subtotal = quantity * boxPrice
+            profit = quantity * (boxPrice - buyingPrice)
+          } else {
+            // Selling pieces - use piece price
+            subtotal = quantity * sellingPrice
+            profit = quantity * (sellingPrice - (buyingPrice / product.pieces_per_box))
+          }
+        }
 
         return {
           ...item,
@@ -192,10 +235,19 @@ export function AdvancedStockOutForm() {
 
   const handleProductSelect = (itemId: string, productId: string) => {
     const product = products.find((p) => p.id === productId)
+    const defaultUnitSold = saleMode === "wholesale" && product?.unit_type === "box" ? "box" : "piece"
+    
+    // Set appropriate selling price based on sale mode and unit type
+    let sellingPrice = product?.selling_price || 0 // Default to piece price
+    if (product?.unit_type === "box" && saleMode === "wholesale") {
+      sellingPrice = product?.box_selling_price || (product?.selling_price * (product?.pieces_per_box || 1))
+    }
+    
     updateItem(itemId, {
       product_id: productId,
+      unit_sold: defaultUnitSold,
       buying_price: product?.price || 0,
-      selling_price: product?.selling_price || 0,
+      selling_price: sellingPrice,
     })
     // Save selected product name and clear search
     setSelectedProductNames({ ...selectedProductNames, [itemId]: product?.name || "" })
@@ -236,9 +288,29 @@ export function AdvancedStockOutForm() {
   // Check stock availability
   const stockErrors = items.map((item) => {
     const product = products.find((p) => p.id === item.product_id)
-    if (product && item.quantity > product.quantity) {
-      return `${product.name}: need ${item.quantity}, have ${product.quantity}`
+    if (!product || item.quantity <= 0) return null
+    
+    // Calculate required stock based on unit type
+    if (product.unit_type === "box" && product.pieces_per_box) {
+      if (item.unit_sold === "piece") {
+        // Selling pieces - check total available pieces
+        const totalPieces = (product.quantity * product.pieces_per_box) + (product.remaining_pieces || 0)
+        if (item.quantity > totalPieces) {
+          return `${product.name}: need ${item.quantity} pieces, have ${totalPieces} pieces available`
+        }
+      } else {
+        // Selling boxes - check box quantity
+        if (item.quantity > product.quantity) {
+          return `${product.name}: need ${item.quantity} boxes, have ${product.quantity} boxes available`
+        }
+      }
+    } else {
+      // Regular product - check quantity
+      if (item.quantity > product.quantity) {
+        return `${product.name}: need ${item.quantity}, have ${product.quantity} available`
+      }
     }
+    
     return null
   })
 
@@ -255,6 +327,39 @@ export function AdvancedStockOutForm() {
       setIsLoading(false)
       return
     }
+
+    // Check for existing unpaid credits if payment type is CREDIT
+    if (paymentType === "CREDIT" && (selectedCustomer || newCustomerName)) {
+      try {
+        const supabase = createClient()
+        const customerName = selectedCustomer?.name || newCustomerName
+        
+        const { data: existingCredits } = await supabase
+          .from("credits")
+          .select("amount_owed, amount_paid")
+          .eq("customer_name", customerName)
+          .eq("is_active", true)
+          .neq("status", "PAID")
+        
+        const totalUnpaid = (existingCredits || []).reduce((sum, credit) => 
+          sum + (credit.amount_owed - credit.amount_paid), 0
+        )
+        
+        if (totalUnpaid > 0) {
+          setExistingCreditAmount(totalUnpaid)
+          setShowCreditConfirmation(true)
+          setIsLoading(false)
+          return
+        }
+      } catch (err) {
+        console.error("Failed to check existing credits:", err)
+      }
+    }
+
+    await processTransaction()
+  }
+
+  const processTransaction = async () => {
 
     try {
       // Prepare customer object (for both CASH and CREDIT if customer info is provided)
@@ -277,6 +382,7 @@ export function AdvancedStockOutForm() {
       const apiItems = items.map((item) => ({
         product_id: item.product_id,
         quantity: item.quantity,
+        unit_type: item.unit_sold === "box" ? "boxes" : "pieces",
         selling_price: item.selling_price,
         buying_price: item.buying_price,
       }))
@@ -296,13 +402,13 @@ export function AdvancedStockOutForm() {
 
       // Reset form
       setItems([
-        { id: "1", product_id: "", quantity: 0, selling_price: 0, buying_price: 0, subtotal: 0, profit: 0 },
+        { id: "1", product_id: "", quantity: 0, unit_sold: "piece", selling_price: 0, buying_price: 0, subtotal: 0, profit: 0 },
       ])
       setNotes("")
       setSelectedCustomer(null)
       setNewCustomerName("")
       setNewCustomerPhone("")
-      setNewCustomerEmail("")
+      setNewCustomerTin("")
       setIncludeCustomer(false)
       setPaymentType("CASH")
       setProductSearchQueries({})
@@ -310,7 +416,10 @@ export function AdvancedStockOutForm() {
       setSelectedProductNames({})
 
       // Refresh page after 2 seconds
-      setTimeout(() => router.refresh(), 2000)
+      setTimeout(() => {
+        router.refresh()
+        onTransactionSuccess?.()
+      }, 2000)
     } catch (err: any) {
       setError(err.message || "Failed to create stock out")
     } finally {
@@ -337,6 +446,81 @@ export function AdvancedStockOutForm() {
           </div>
         ) : (
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Sale Mode Toggle */}
+          <Card className="bg-secondary/20">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Package className="h-5 w-5 text-primary" />
+                  <div>
+                    <Label className="text-base font-medium">Sale Mode</Label>
+                    <p className="text-sm text-muted-foreground">Choose wholesale or retail</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Label htmlFor="sale-mode" className={saleMode === "wholesale" ? "font-medium" : "text-muted-foreground"}>
+                    Wholesale
+                  </Label>
+                  <input
+                    type="checkbox"
+                    id="sale-mode"
+                    checked={saleMode === "retail"}
+                    onChange={(e) => {
+                      const newSaleMode = e.target.checked ? "retail" : "wholesale"
+                      setSaleMode(newSaleMode)
+                      
+                      // Update all items with products to use appropriate prices and units
+                      setItems(items.map(item => {
+                        const product = products.find(p => p.id === item.product_id)
+                        if (!product) return item
+                        
+                        let newUnitSold = item.unit_sold
+                        let newSellingPrice = item.selling_price
+                        
+                        if (product.unit_type === "box") {
+                          if (newSaleMode === "wholesale") {
+                            // Switch to box sales for wholesale
+                            newUnitSold = "box"
+                            newSellingPrice = product.box_selling_price || (product.selling_price * (product.pieces_per_box || 1))
+                          } else {
+                            // Switch to piece sales for retail
+                            newUnitSold = "piece"
+                            newSellingPrice = product.selling_price
+                          }
+                        }
+                        
+                        // Recalculate subtotal and profit
+                        let subtotal = item.quantity * newSellingPrice
+                        let profit = item.quantity * (newSellingPrice - item.buying_price)
+                        
+                        if (product.unit_type === "box" && product.pieces_per_box) {
+                          if (newUnitSold === "box") {
+                            subtotal = item.quantity * newSellingPrice
+                            profit = item.quantity * (newSellingPrice - item.buying_price)
+                          } else {
+                            subtotal = item.quantity * newSellingPrice
+                            profit = item.quantity * (newSellingPrice - (item.buying_price / product.pieces_per_box))
+                          }
+                        }
+                        
+                        return {
+                          ...item,
+                          unit_sold: newUnitSold,
+                          selling_price: newSellingPrice,
+                          subtotal,
+                          profit
+                        }
+                      }))
+                    }}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <Label htmlFor="sale-mode" className={saleMode === "retail" ? "font-medium" : "text-muted-foreground"}>
+                    Retail
+                  </Label>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
           {/* Items Section */}
           <div className="space-y-4">
             <div className="flex justify-between items-center">
@@ -357,14 +541,14 @@ export function AdvancedStockOutForm() {
             <div className="space-y-3 bg-secondary/20 rounded-lg p-4">
               {items.map((item, index) => {
                 const product = products.find((p) => p.id === item.product_id)
-                const hasError = product && item.quantity > product.quantity
+                const stockError = stockErrors[index]
                 const filteredProducts = getFilteredProducts(item.id)
 
                 return (
                   <div
                     key={item.id}
                     className={`space-y-3 p-4 rounded-lg border-2 transition-colors ${
-                      hasError ? "border-destructive/50 bg-destructive/5" : "border-border bg-background"
+                      stockError ? "border-destructive/50 bg-destructive/5" : "border-border bg-background"
                     }`}
                   >
                     <div className="flex justify-between items-start gap-4">
@@ -433,16 +617,27 @@ export function AdvancedStockOutForm() {
                                       <div className="flex justify-between items-center gap-2">
                                         <div className="flex-1">
                                           <p className="font-medium">{p.name}</p>
+                                          {p.unit_type === "box" && p.pieces_per_box && (
+                                            <p className="text-xs text-muted-foreground">
+                                              {p.pieces_per_box} pieces/box
+                                            </p>
+                                          )}
                                         </div>
                                         <div className="flex flex-col items-end gap-1">
                                           <Badge 
                                             variant={p.quantity > 10 ? "secondary" : p.quantity > 0 ? "outline" : "destructive"}
                                             className="text-xs"
                                           >
-                                            Stock: {p.quantity}
+                                            {p.unit_type === "box" 
+                                              ? `${p.quantity} boxes (${(p.quantity * (p.pieces_per_box || 1)) + (p.remaining_pieces || 0)} pieces total)`
+                                              : `Stock: ${p.quantity}`
+                                            }
                                           </Badge>
                                           <span className="text-xs text-muted-foreground">
-                                            {p.selling_price?.toLocaleString()} RWF
+                                            Piece: {p.selling_price?.toLocaleString()} RWF
+                                            {p.unit_type === "box" && p.box_selling_price && (
+                                              <> | Box: {p.box_selling_price?.toLocaleString()} RWF</>
+                                            )}
                                           </span>
                                         </div>
                                       </div>
@@ -459,12 +654,51 @@ export function AdvancedStockOutForm() {
                             </div>
                           </div>
 
+                          {/* Unit Type Selection for Box Products */}
+                          {product?.unit_type === "box" && product.allow_retail_sales && (
+                            <div>
+                              <Label className="text-sm">Unit Type *</Label>
+                              <Select
+                                value={item.unit_sold}
+                                onValueChange={(value: UnitType) => {
+                                  const newSellingPrice = value === "box" 
+                                    ? (product.box_selling_price || (product.selling_price * (product.pieces_per_box || 1)))
+                                    : product.selling_price
+                                  updateItem(item.id, { 
+                                    unit_sold: value,
+                                    selling_price: newSellingPrice
+                                  })
+                                }}
+                              >
+                                <SelectTrigger className="h-10">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="box">
+                                    <div className="flex items-center gap-2">
+                                      <Package className="h-4 w-4" />
+                                      Whole Box ({product.pieces_per_box} pieces)
+                                    </div>
+                                  </SelectItem>
+                                  <SelectItem value="piece">
+                                    <div className="flex items-center gap-2">
+                                      <Package className="h-4 w-4" />
+                                      Individual Pieces
+                                    </div>
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+
                           <div>
-                            <Label className="text-sm">Quantity *</Label>
+                            <Label className="text-sm">Quantity * ({item.unit_sold === "box" ? "boxes" : "pieces"})</Label>
                             <Input
                               type="number"
                               min="1"
-                              max={product?.quantity || 999}
+                              max={product?.unit_type === "box" && item.unit_sold === "piece" 
+                                ? (product.quantity * (product.pieces_per_box || 1)) + (product.remaining_pieces || 0)
+                                : product?.quantity || 999}
                               value={item.quantity || ""}
                               onChange={(e) =>
                                 updateItem(item.id, { quantity: Number.parseInt(e.target.value) || 0 })
@@ -475,7 +709,9 @@ export function AdvancedStockOutForm() {
                           </div>
 
                           <div>
-                            <Label className="text-sm">Selling Price *</Label>
+                            <Label className="text-sm">
+                              Selling Price * (RWF per {item.unit_sold === "box" ? "box" : "piece"})
+                            </Label>
                             <Input
                               type="number"
                               step="0.01"
@@ -484,8 +720,16 @@ export function AdvancedStockOutForm() {
                                 updateItem(item.id, { selling_price: Number.parseFloat(e.target.value) || 0 })
                               }
                               className="h-10"
-                              placeholder="0.00"
+                              placeholder={item.unit_sold === "box" ? "Box price" : "Piece price"}
                             />
+                            {product?.unit_type === "box" && product.pieces_per_box && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {item.unit_sold === "box" 
+                                  ? `≈ ${(item.selling_price / (product.pieces_per_box || 1)).toFixed(2)} RWF per piece`
+                                  : `≈ ${(item.selling_price * (product.pieces_per_box || 1)).toFixed(2)} RWF per box`
+                                }
+                              </p>
+                            )}
                           </div>
 
                           <div>
@@ -500,11 +744,11 @@ export function AdvancedStockOutForm() {
                           </div>
                         </div>
 
-                        {hasError && (
+                        {stockErrors[index] && (
                           <div className="flex items-center gap-2 p-2 bg-destructive/10 rounded border border-destructive/30">
                             <AlertTriangle className="h-4 w-4 text-destructive" />
                             <span className="text-sm text-destructive">
-                              Insufficient stock: {product?.quantity || 0} available
+                              {stockErrors[index]}
                             </span>
                           </div>
                         )}
@@ -689,10 +933,9 @@ export function AdvancedStockOutForm() {
                       className="h-10"
                     />
                     <Input
-                      placeholder="Email (optional)"
-                      type="email"
-                      value={newCustomerEmail}
-                      onChange={(e) => setNewCustomerEmail(e.target.value)}
+                      placeholder="TIN number (optional)"
+                      value={newCustomerTin}
+                      onChange={(e) => setNewCustomerTin(e.target.value)}
                       className="h-10"
                     />
                   </div>
@@ -752,6 +995,29 @@ export function AdvancedStockOutForm() {
           </Button>
         </form>
         )}
+        
+        {/* Credit Confirmation Dialog */}
+        <AlertDialog open={showCreditConfirmation} onOpenChange={setShowCreditConfirmation}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Customer Has Existing Credit</AlertDialogTitle>
+              <AlertDialogDescription>
+                {selectedCustomer?.name || newCustomerName} has an unpaid credit balance of {existingCreditAmount.toLocaleString()} RWF.
+                <br /><br />
+                Do you want to add another credit for this customer?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setIsLoading(false)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => {
+                setShowCreditConfirmation(false)
+                processTransaction()
+              }}>
+                Yes, Add New Credit
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardContent>
     </Card>
   )

@@ -53,6 +53,7 @@ export const creditService = {
         }
         throw new Error(error.message)
       }
+      
       return data || []
     } catch (err: any) {
       // Fallback to simple query

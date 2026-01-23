@@ -4,6 +4,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Dialog,
   DialogContent,
@@ -52,8 +54,9 @@ import {
   Trash2,
   AlertTriangle,
 } from "lucide-react"
-import { useState, useMemo } from "react"
-import  {stockOutService} from "@/lib/supabase/stock-out-service"
+import { useState, useMemo, useEffect } from "react"
+import { stockOutService } from "@/lib/supabase/stock-out-service"
+import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import type { StockTransaction, Product, Customer } from "@/lib/types"
 
@@ -87,202 +90,6 @@ interface RecentStockOutProps {
   onTransactionUpdated?: () => void
 }
 
-function EditTransactionDialog({ 
-  transaction, 
-  isOpen, 
-  onClose,
-  onSuccess
-}: { 
-  transaction: EnhancedStockTransaction
-  isOpen: boolean
-  onClose: () => void
-  onSuccess: () => void
-}) {
-  const { toast } = useToast()
-  const [loading, setLoading] = useState(false)
-  const [paymentType, setPaymentType] = useState(transaction.payment_type)
-  const [customerName, setCustomerName] = useState(transaction.customers?.name || "")
-  const [customerPhone, setCustomerPhone] = useState(transaction.customers?.phone || "")
-  const [items, setItems] = useState<StockOutItem[]>(
-    transaction.stock_out_items || []
-  )
-
-  const handleUpdateItem = (index: number, field: 'quantity' | 'selling_price', value: number) => {
-    const newItems = [...items]
-    newItems[index] = { ...newItems[index], [field]: value }
-    setItems(newItems)
-  }
-
-  const handleSave = async () => {
-    if (!customerName.trim()) {
-      toast({
-        title: "Validation Error",
-        description: "Customer name is required",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setLoading(true)
-    try {
-      await stockOutService.updateStockOut({
-        transactionId: transaction.id,
-        customer: {
-          name: customerName,
-          phone: customerPhone || null,
-        },
-        payment_type: paymentType,
-        items: items.map(item => ({
-          product_id: item.product_id,
-          quantity: item.quantity,
-          selling_price: item.selling_price,
-          buying_price: item.buying_price,
-        })),
-      })
-
-      toast({
-        title: "Success",
-        description: "Transaction updated successfully",
-      })
-      
-      onSuccess()
-      onClose()
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Edit className="h-5 w-5" />
-            Edit Transaction #{transaction.invoice_number || transaction.id.slice(0,8)}
-          </DialogTitle>
-          <DialogDescription>
-            Update transaction details and items
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-6">
-          {/* Customer Information */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-sm">Customer Information</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-medium mb-1 block">Customer Name</label>
-                <Input
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Customer name"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium mb-1 block">Phone Number</label>
-                <Input
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  placeholder="Phone number"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Payment Type */}
-          <div className="space-y-2">
-            <label className="text-xs font-medium">Payment Type</label>
-            <Select value={paymentType} onValueChange={(v: any) => setPaymentType(v)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="CASH">Cash</SelectItem>
-                <SelectItem value="CREDIT">Credit</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Items */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-sm">Items</h3>
-            <div className="space-y-3">
-              {items.map((item, index) => (
-                <Card key={item.id}>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-4">
-                      <div className="flex-1">
-                        <p className="font-medium text-sm">
-                          {item.products?.name || item.product?.name}
-                        </p>
-                        {(item.products?.brand || item.product?.brand) && (
-                          <p className="text-xs text-muted-foreground">
-                            {item.products?.brand || item.product?.brand}
-                          </p>
-                        )}
-                      </div>
-                      <div className="w-24">
-                        <label className="text-xs text-muted-foreground">Qty</label>
-                        <Input
-                          type="number"
-                          min="1"
-                          value={item.quantity}
-                          onChange={(e) => handleUpdateItem(index, 'quantity', parseInt(e.target.value) || 1)}
-                          className="text-center"
-                        />
-                      </div>
-                      <div className="w-32">
-                        <label className="text-xs text-muted-foreground">Price</label>
-                        <Input
-                          type="number"
-                          min="0"
-                          value={item.selling_price}
-                          onChange={(e) => handleUpdateItem(index, 'selling_price', parseFloat(e.target.value) || 0)}
-                        />
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs text-muted-foreground">Total</p>
-                        <p className="font-bold">
-                          {(item.quantity * item.selling_price).toLocaleString()} RWF
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            {/* New Total */}
-            <div className="flex justify-end pt-4 border-t">
-              <div className="text-right">
-                <p className="text-sm text-muted-foreground">New Total</p>
-                <p className="text-2xl font-black">
-                  {items.reduce((sum, item) => sum + (item.quantity * item.selling_price), 0).toLocaleString()} RWF
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={loading}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={loading}>
-            {loading ? "Saving..." : "Save Changes"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
 function DeleteConfirmDialog({
   transaction,
   isOpen,
@@ -292,7 +99,7 @@ function DeleteConfirmDialog({
   transaction: EnhancedStockTransaction
   isOpen: boolean
   onClose: () => void
-  onConfirm: () => void
+  onConfirm: (reason: string) => Promise<void>
 }) {
   const [reason, setReason] = useState("")
   const [loading, setLoading] = useState(false)
@@ -304,43 +111,56 @@ function DeleteConfirmDialog({
 
     setLoading(true)
     try {
-      await onConfirm()
+      await onConfirm(reason)
+      onClose()
+      setReason("")
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <AlertDialog open={isOpen} onOpenChange={onClose}>
+    <AlertDialog open={isOpen} onOpenChange={(open) => {
+      if (!open) {
+        setReason("")
+        onClose()
+      }
+    }}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-destructive" />
             Delete Transaction?
           </AlertDialogTitle>
-          <AlertDialogDescription className="space-y-4">
-            <p>
-              You are about to delete transaction{" "}
-              <span className="font-bold">
-                #{transaction.invoice_number || transaction.id.slice(0, 8)}
-              </span>{" "}
-              for <span className="font-bold">{transaction.total_amount.toLocaleString()} RWF</span>.
-            </p>
-            <p className="text-destructive font-semibold">
+          <AlertDialogDescription>
+            You are about to delete transaction{" "}
+            <span className="font-bold">
+              #{transaction.invoice_number || transaction.id.slice(0, 8)}
+            </span>{" "}
+            for <span className="font-bold">{transaction.total_amount.toLocaleString()} RWF</span>.
+            <br /><br />
+            <span className="text-destructive font-semibold">
               This will restore the stock quantities and cannot be undone.
-            </p>
-            
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Reason for deletion (required)</label>
-              <Input
-                placeholder="e.g., Wrong customer, incorrect items..."
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                disabled={loading}
-              />
-            </div>
+            </span>
           </AlertDialogDescription>
         </AlertDialogHeader>
+        
+        <div className="space-y-3">
+          <div>
+            <Label htmlFor="delete-reason" className="text-sm font-medium">
+              Reason for deletion (required)
+            </Label>
+            <Input
+              id="delete-reason"
+              placeholder="e.g., Wrong customer, incorrect items..."
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              disabled={loading}
+              className="mt-1"
+            />
+          </div>
+        </div>
+
         <AlertDialogFooter>
           <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
           <AlertDialogAction
@@ -356,6 +176,336 @@ function DeleteConfirmDialog({
   )
 }
 
+
+
+function EditTransactionDialog({
+  transaction,
+  isOpen,
+  onClose,
+  onSuccess,
+}: {
+  transaction: EnhancedStockTransaction
+  isOpen: boolean
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const [formData, setFormData] = useState({
+    customer_name: transaction.customers?.name || transaction.customer_name || "",
+    customer_phone: transaction.customers?.phone || "",
+    payment_type: transaction.payment_type,
+    notes: ""
+  })
+  const [items, setItems] = useState<any[]>([])
+  const [products, setProducts] = useState<any[]>([])
+  const [customers, setCustomers] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const { toast } = useToast()
+
+  // Load products and customers on open
+  useEffect(() => {
+    if (isOpen) {
+      loadData()
+      initializeItems()
+    }
+  }, [isOpen])
+
+  const initializeItems = () => {
+    if (transaction.stock_out_items?.length) {
+      // New transaction structure
+      setItems(transaction.stock_out_items.map(item => ({
+        id: item.id,
+        product_id: item.product_id,
+        quantity: item.quantity,
+        selling_price: Number(item.selling_price),
+        unit_sold: "piece",
+        product: item.products || item.product
+      })))
+    } else if (transaction.product) {
+      // Old transaction structure
+      setItems([{
+        id: 'legacy',
+        product_id: transaction.product.id,
+        quantity: transaction.quantity || 1,
+        selling_price: Number(transaction.selling_price || 0),
+        unit_sold: "piece",
+        product: transaction.product
+      }])
+    }
+  }
+
+  const loadData = async () => {
+    try {
+      const supabase = createClient()
+      
+      const { data: productsData } = await supabase
+        .from('products')
+        .select('*')
+        .order('name')
+      
+      const { data: customersData } = await supabase
+        .from('customers')
+        .select('*')
+        .order('name')
+      
+      setProducts(productsData || [])
+      setCustomers(customersData || [])
+    } catch (error) {
+      console.error('Failed to load data:', error)
+    }
+  }
+
+  const addItem = () => {
+    setItems([...items, {
+      id: `new-${Date.now()}`,
+      product_id: '',
+      quantity: 1,
+      selling_price: 0,
+      unit_sold: 'piece',
+      product: null
+    }])
+  }
+
+  const removeItem = (index: number) => {
+    if (items.length > 1) {
+      setItems(items.filter((_, i) => i !== index))
+    }
+  }
+
+  const updateItem = (index: number, field: string, value: any) => {
+    const newItems = [...items]
+    newItems[index] = { ...newItems[index], [field]: value }
+    
+    if (field === 'product_id') {
+      const product = products.find(p => p.id === value)
+      newItems[index].product = product
+      newItems[index].selling_price = product?.selling_price || 0
+    }
+    
+    setItems(newItems)
+  }
+
+  const calculateTotal = () => {
+    return items.reduce((sum, item) => sum + (item.quantity * item.selling_price), 0)
+  }
+
+  const handleSave = async () => {
+    if (items.some(item => !item.product_id || item.quantity <= 0 || item.selling_price <= 0)) {
+      toast({ title: "Error", description: "All items must have valid product, quantity and price", variant: "destructive" })
+      return
+    }
+
+    setLoading(true)
+    try {
+      toast({ title: "Info", description: "Advanced transaction editing will be implemented in a future update." })
+      onClose()
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Edit className="h-5 w-5" />
+            Edit Transaction #{transaction.invoice_number || transaction.id.slice(0, 8)}
+          </DialogTitle>
+          <DialogDescription>
+            Modify transaction items, customer and payment details.
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-6">
+          {/* Customer Information */}
+          <div className="space-y-4">
+            <h3 className="font-medium text-sm">Customer Information</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Customer Name</Label>
+                <Select value={formData.customer_name || "cash_customer"} onValueChange={(value) => {
+                  if (value === "cash_customer") {
+                    setFormData({ ...formData, customer_name: "", customer_phone: "" })
+                  } else {
+                    const customer = customers.find(c => c.name === value)
+                    setFormData({ ...formData, customer_name: value, customer_phone: customer?.phone || "" })
+                  }
+                }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select customer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash_customer">Cash Customer</SelectItem>
+                    {customers.map(customer => (
+                      <SelectItem key={customer.id} value={customer.name}>
+                        {customer.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Phone Number</Label>
+                <Input
+                  value={formData.customer_phone}
+                  onChange={(e) => setFormData({...formData, customer_phone: e.target.value})}
+                  placeholder="Customer phone"
+                  disabled={loading}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Items */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-medium text-sm">Transaction Items</h3>
+              <Button type="button" variant="outline" size="sm" onClick={addItem}>
+                Add Item
+              </Button>
+            </div>
+            
+            <div className="space-y-3">
+              {items.map((item, index) => (
+                <Card key={item.id} className="p-4">
+                  <div className="grid grid-cols-12 gap-3 items-end">
+                    <div className="col-span-5">
+                      <Label className="text-xs">Product</Label>
+                      <Select 
+                        value={item.product_id} 
+                        onValueChange={(value) => updateItem(index, 'product_id', value)}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Select product" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {products.map(product => (
+                            <SelectItem key={product.id} value={product.id}>
+                              {product.name} - {product.brand}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="col-span-2">
+                      <Label className="text-xs">Quantity</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={item.quantity}
+                        onChange={(e) => updateItem(index, 'quantity', Number(e.target.value))}
+                        className="h-9"
+                      />
+                    </div>
+                    
+                    <div className="col-span-2">
+                      <Label className="text-xs">Price</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={item.selling_price}
+                        onChange={(e) => updateItem(index, 'selling_price', Number(e.target.value))}
+                        className="h-9"
+                      />
+                    </div>
+                    
+                    <div className="col-span-2">
+                      <Label className="text-xs">Subtotal</Label>
+                      <div className="h-9 px-3 py-2 bg-muted rounded text-sm">
+                        {(item.quantity * item.selling_price).toLocaleString()}
+                      </div>
+                    </div>
+                    
+                    <div className="col-span-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeItem(index)}
+                        disabled={items.length === 1}
+                        className="h-9 w-9 p-0 text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
+
+          {/* Payment Information */}
+          <div className="space-y-4">
+            <h3 className="font-medium text-sm">Payment Information</h3>
+            <div>
+              <Label>Payment Type</Label>
+              <Select value={formData.payment_type} onValueChange={(value: "CASH" | "CREDIT") => 
+                setFormData({...formData, payment_type: value})
+              }>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CASH">Cash Payment</SelectItem>
+                  <SelectItem value="CREDIT">Credit (IDENI)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <Label>Notes (Optional)</Label>
+            <Textarea
+              value={formData.notes}
+              onChange={(e) => setFormData({...formData, notes: e.target.value})}
+              placeholder="Additional notes for this transaction..."
+              rows={3}
+              disabled={loading}
+            />
+          </div>
+          
+          {/* Transaction Summary */}
+          <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
+            <h4 className="font-medium text-sm mb-2">Transaction Summary</h4>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-muted-foreground">Customer:</span>
+                <p className="font-medium">{formData.customer_name || "Cash Customer"}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Payment:</span>
+                <p className="font-medium">{formData.payment_type}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Items:</span>
+                <p className="font-medium">{items.length} items</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Total Amount:</span>
+                <p className="font-bold text-lg">{calculateTotal().toLocaleString()} RWF</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={loading}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={loading}>
+            {loading ? "Saving..." : "Save Changes"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function InvoiceModal({ 
   transaction, 
   isOpen, 
@@ -365,6 +515,7 @@ function InvoiceModal({
   isOpen: boolean
   onClose: () => void
 }) {
+  if (!transaction) return null
   const date = new Date(transaction.created_at)
   const formattedDate = date.toLocaleDateString("en-GB", {
     day: "2-digit",
@@ -500,6 +651,9 @@ function InvoiceModal({
             </p>
             {transaction.customers?.phone && (
               <p style={{ fontSize: '14px', color: '#4b5563' }}>{transaction.customers.phone}</p>
+            )}
+            {transaction.customers?.tin_number && (
+              <p style={{ fontSize: '14px', color: '#4b5563' }}>TIN: {transaction.customers.tin_number}</p>
             )}
           </div>
 
@@ -687,28 +841,6 @@ export function RecentStockOut({ transactions, onTransactionUpdated }: RecentSto
     setCurrentPage(1)
   }
 
-  const handleDelete = async () => {
-    if (!deletingTransaction) return
-
-    try {
-      await stockOutService.cancelStockOut(deletingTransaction.id, "User deleted transaction")
-      
-      toast({
-        title: "Transaction Deleted",
-        description: "The transaction has been cancelled and stock restored.",
-      })
-      
-      setDeletingTransaction(null)
-      onTransactionUpdated?.()
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      })
-    }
-  }
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -872,7 +1004,12 @@ export function RecentStockOut({ transactions, onTransactionUpdated }: RecentSto
                         <DropdownMenuItem onClick={() => setSelectedTransaction(t)}>
                           <Eye className="mr-2 h-4 w-4" /> View Invoice
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setEditingTransaction(t)}>
+                        <DropdownMenuItem 
+                          onClick={() => {
+                            console.log('Transaction data:', t)
+                            setEditingTransaction(t)
+                          }}
+                        >
                           <Edit className="mr-2 h-4 w-4" /> Edit Sale
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
@@ -953,9 +1090,25 @@ export function RecentStockOut({ transactions, onTransactionUpdated }: RecentSto
           transaction={deletingTransaction}
           isOpen={!!deletingTransaction}
           onClose={() => setDeletingTransaction(null)}
-          onConfirm={handleDelete}
+          onConfirm={async (reason) => {
+            try {
+              await stockOutService.safeDeleteTransaction(deletingTransaction.id, reason)
+              toast({
+                title: "Transaction Deleted",
+                description: "The transaction has been safely deleted and stock restored.",
+              })
+              onTransactionUpdated?.()
+            } catch (error: any) {
+              toast({
+                title: "Error",
+                description: error.message,
+                variant: "destructive",
+              })
+            }
+          }}
         />
       )}
     </div>
   )
 }
+ 

@@ -12,7 +12,7 @@ export default async function StockInPage() {
   if (!user) return null
 
   const [{ data: products }, { data: transactions }] = await Promise.all([
-    supabase.from("products").select("*").order("name"),
+    supabase.from("products").select("*").eq("is_archived", false).order("name"),
     supabase
       .from("stock_transactions")
       .select("*, product:products(*)")

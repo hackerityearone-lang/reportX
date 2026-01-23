@@ -22,7 +22,7 @@ export function CustomersManager() {
   const [showDetails, setShowDetails] = useState(false)
 
   // Form state
-  const [formData, setFormData] = useState({ name: "", phone: "", email: "" })
+  const [formData, setFormData] = useState({ name: "", phone: "", tin_number: "" })
   const [editingId, setEditingId] = useState<string | null>(null)
 
   // Load customers
@@ -53,13 +53,13 @@ export function CustomersManager() {
         await customerService.updateCustomer(editingId, {
           name: formData.name,
           phone: formData.phone,
-          email: formData.email,
+          tin_number: formData.tin_number,
         } as any)
       } else {
         await customerService.createCustomer({
           name: formData.name,
           phone: formData.phone || null,
-          email: formData.email || null,
+          tin_number: formData.tin_number || null,
           total_credit: 0,
           is_archived: false,
         } as any)
@@ -80,7 +80,7 @@ export function CustomersManager() {
     setFormData({
       name: customer.name,
       phone: customer.phone || "",
-      email: customer.email || "",
+      tin_number: customer.tin_number || "",
     })
     setEditingId(customer.id)
     setShowForm(true)
@@ -115,7 +115,7 @@ export function CustomersManager() {
     return (
       customer.name.toLowerCase().includes(query) ||
       customer.phone?.toLowerCase().includes(query) ||
-      customer.email?.toLowerCase().includes(query)
+      customer.tin_number?.toLowerCase().includes(query)
     )
   })
 
@@ -148,7 +148,7 @@ export function CustomersManager() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search customers by name, phone, or email..."
+                placeholder="Search customers by name, phone, or TIN..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 h-11"
@@ -204,15 +204,14 @@ export function CustomersManager() {
                   </div>
                 </div>
                 <div>
-                  <Label htmlFor="email" className="text-sm font-medium">
-                    Email Address
+                  <Label htmlFor="tin_number" className="text-sm font-medium">
+                    TIN Number
                   </Label>
                   <Input
-                    id="email"
-                    type="email"
-                    placeholder="customer@example.com"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    id="tin_number"
+                    placeholder="123456789"
+                    value={formData.tin_number}
+                    onChange={(e) => setFormData({ ...formData, tin_number: e.target.value })}
                     className="h-11 mt-1.5"
                   />
                 </div>
@@ -291,13 +290,13 @@ export function CustomersManager() {
                               <span className="truncate">{customer.phone}</span>
                             </div>
                           )}
-                          {customer.email && (
+                          {customer.tin_number && (
                             <div className="flex items-center gap-2 text-muted-foreground">
                               <Mail className="h-3.5 w-3.5 flex-shrink-0" />
-                              <span className="truncate">{customer.email}</span>
+                              <span className="truncate">TIN: {customer.tin_number}</span>
                             </div>
                           )}
-                          {!customer.phone && !customer.email && (
+                          {!customer.phone && !customer.tin_number && (
                             <p className="text-muted-foreground text-xs">No contact info</p>
                           )}
                         </div>

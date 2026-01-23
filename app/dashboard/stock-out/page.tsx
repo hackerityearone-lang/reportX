@@ -4,8 +4,9 @@ import { useState, useEffect } from "react"
 import { RecentStockOut } from "@/components/stock/recent-stock-out"
 import { AdvancedStockOutForm } from "@/components/stock/advanced-stock-out-form"
 import { stockOutService } from "@/lib/supabase/stock-out-service"
-import { Loader2, TrendingDown, DollarSign, Package, TrendingUp } from "lucide-react"
+import { Loader2, TrendingDown, DollarSign, Package, TrendingUp, RefreshCw } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import type { StockTransaction } from "@/lib/types"
 
 export default function StockOutPage() {
@@ -32,7 +33,7 @@ export default function StockOutPage() {
     
     try {
       // Load transactions
-      const data = await stockOutService.getStockOuts()
+      const data = await stockOutService.getStockOuts({ includeDeleted: false })
       
       // Transform data to include total_amount if not present
       const enhancedData = data.map((tx: any) => {
@@ -80,6 +81,20 @@ export default function StockOutPage() {
             Record sales, manage invoices, and track inventory
           </p>
         </div>
+        <Button
+          onClick={loadData}
+          disabled={isLoading}
+          variant="outline"
+          size="sm"
+          className="gap-2"
+        >
+          {isLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <RefreshCw className="h-4 w-4" />
+          )}
+          Refresh
+        </Button>
       </div>
 
       {/* Today's Stats */}
@@ -156,7 +171,7 @@ export default function StockOutPage() {
       <div className="grid gap-2 lg:grid-cols-1">
         {/* Stock Out Form */}
         <div>
-          <AdvancedStockOutForm />
+          <AdvancedStockOutForm onTransactionSuccess={loadData} />
         </div>
 
         {/* Recent Transactions */}
@@ -179,7 +194,10 @@ export default function StockOutPage() {
               </CardContent>
             </Card>
           ) : (
-            <RecentStockOut transactions={transactions.slice(0, 10)} />
+            <RecentStockOut 
+              transactions={transactions.slice(0, 10)} 
+              onTransactionUpdated={loadData}
+            />
           )}
         </div>
       </div>

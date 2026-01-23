@@ -40,7 +40,7 @@ export function ProductsGrid({ products }: ProductsGridProps) {
 
   const calculateTotalPieces = (product: Product) => {
     if (product.pieces_per_box) {
-      return (product.boxes_in_stock * product.pieces_per_box) + (product.remaining_pieces || 0)
+      return (product.boxes_in_stock * product.pieces_per_box) + (product.open_box_pieces || 0)
     }
     return product.boxes_in_stock
   }
@@ -208,10 +208,10 @@ export function ProductsGrid({ products }: ProductsGridProps) {
                             {totalPieces}
                           </span>
                         </div>
-                        {(product.remaining_pieces || 0) > 0 && (
+                        {(product.open_box_pieces || 0) > 0 && (
                           <div className="flex items-center justify-between text-xs">
-                            <span className="text-muted-foreground">Remaining pieces:</span>
-                            <span className="font-medium text-primary">{product.remaining_pieces}</span>
+                            <span className="text-muted-foreground">Open pieces:</span>
+                            <span className="font-medium text-primary">{product.open_box_pieces}</span>
                           </div>
                         )}
                         <div className="flex items-center gap-1 text-xs text-muted-foreground">

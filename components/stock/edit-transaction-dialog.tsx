@@ -112,7 +112,7 @@ export function EditTransactionDialog({ transaction, open, onOpenChange }: EditT
     if (product.unit_type === "box" && product.pieces_per_box) {
       if (formData.unit_sold === "box") {
         // Selling boxes - use box price or calculate from piece price
-        const boxPrice = product.box_selling_price || (sellingPrice * product.pieces_per_box)
+        const boxPrice = product.selling_price_per_box || (sellingPrice * product.pieces_per_box)
         return quantity * boxPrice
       } else {
         // Selling pieces
@@ -133,7 +133,7 @@ export function EditTransactionDialog({ transaction, open, onOpenChange }: EditT
     if (product.unit_type === "box" && product.pieces_per_box) {
       if (formData.unit_sold === "box") {
         // Selling boxes
-        const boxPrice = product.box_selling_price || (sellingPrice * product.pieces_per_box)
+        const boxPrice = product.selling_price_per_box || (sellingPrice * product.pieces_per_box)
         return quantity * (boxPrice - buyingPrice)
       } else {
         // Selling pieces
@@ -156,7 +156,7 @@ export function EditTransactionDialog({ transaction, open, onOpenChange }: EditT
     // Check if we have enough stock for the increase
     if (product.unit_type === "box" && product.pieces_per_box) {
       if (formData.unit_sold === "piece") {
-        const totalPieces = (product.quantity * product.pieces_per_box) + (product.remaining_pieces || 0)
+        const totalPieces = (product.boxes_in_stock * product.pieces_per_box) + (product.open_box_pieces || 0)
         if (quantityDiff > totalPieces) {
           return `Not enough pieces. Need ${quantityDiff} more, have ${totalPieces} available`
         }
@@ -238,8 +238,8 @@ export function EditTransactionDialog({ transaction, open, onOpenChange }: EditT
             const fullBoxes = Math.floor(Math.abs(quantityDiff) / product.pieces_per_box)
             const remainingPieces = Math.abs(quantityDiff) % product.pieces_per_box
             
-            let newBoxQuantity = product.quantity
-            let newRemainingPieces = product.remaining_pieces || 0
+            let newBoxQuantity = product.boxes_in_stock
+            let newRemainingPieces = product.open_box_pieces || 0
             
             if (quantityDiff > 0) {
               // Increasing sales - reduce stock
@@ -264,22 +264,22 @@ export function EditTransactionDialog({ transaction, open, onOpenChange }: EditT
             await supabase
               .from("products")
               .update({
-                quantity: newBoxQuantity,
-                remaining_pieces: newRemainingPieces
+                boxes_in_stock: newBoxQuantity,
+                open_box_pieces: newRemainingPieces
               })
               .eq("id", product.id)
           } else {
             // Box sales - simple quantity adjustment
             await supabase
               .from("products")
-              .update({ quantity: product.quantity - quantityDiff })
+              .update({ boxes_in_stock: product.boxes_in_stock - quantityDiff })
               .eq("id", product.id)
           }
         } else {
           // Regular product - simple quantity adjustment
           await supabase
             .from("products")
-            .update({ quantity: product.quantity - quantityDiff })
+            .update({ boxes_in_stock: product.boxes_in_stock - quantityDiff })
             .eq("id", product.id)
         }
       }
@@ -329,12 +329,12 @@ export function EditTransactionDialog({ transaction, open, onOpenChange }: EditT
                   )}
                 </div>
                 <div className="ml-auto text-right">
-                  <Badge variant={product.quantity > 10 ? "secondary" : product.quantity > 0 ? "outline" : "destructive"}>
-                    {product.unit_type === "box" ? `${product.quantity} boxes` : `${product.quantity} in stock`}
+                  <Badge variant={product.boxes_in_stock > 10 ? "secondary" : product.boxes_in_stock > 0 ? "outline" : "destructive"}>
+                    {product.unit_type === "box" ? `${product.boxes_in_stock} boxes` : `${product.boxes_in_stock} in stock`}
                   </Badge>
-                  {product.unit_type === "box" && product.remaining_pieces && (
+                  {product.unit_type === "box" && product.open_box_pieces && (
                     <p className="text-xs text-muted-foreground mt-1">
-                      + {product.remaining_pieces} pieces
+                      + {product.open_box_pieces} pieces
                     </p>
                   )}
                 </div>
@@ -353,14 +353,14 @@ export function EditTransactionDialog({ transaction, open, onOpenChange }: EditT
                     let newSellingPrice = 0
                     if (value === "box") {
                       // Selling boxes - use box price or calculate from current piece price
-                      newSellingPrice = product.box_selling_price || 
+                      newSellingPrice = product.selling_price_per_box || 
                         (Number.parseFloat(formData.selling_price) * (product.pieces_per_box || 1)) ||
-                        (product.selling_price * (product.pieces_per_box || 1))
+                        (product.selling_price_per_piece * (product.pieces_per_box || 1))
                     } else {
                       // Selling pieces - use piece price or calculate from current box price
-                      newSellingPrice = product.selling_price ||
+                      newSellingPrice = product.selling_price_per_piece ||
                         (Number.parseFloat(formData.selling_price) / (product.pieces_per_box || 1)) ||
-                        (product.box_selling_price || 0) / (product.pieces_per_box || 1)
+                        (product.selling_price_per_box || 0) / (product.pieces_per_box || 1)
                     }
                     
                     // Ensure we don't set 0 price - keep current price if calculation fails

@@ -212,7 +212,7 @@ export function AdvancedStockOutForm({ onTransactionSuccess }: AdvancedStockOutF
         if (product?.unit_type === "box" && product.pieces_per_box) {
           if (unitSold === "box") {
             // Selling whole boxes - use box price or calculate from piece price
-            const boxPrice = product.box_selling_price || (product.selling_price * product.pieces_per_box)
+            const boxPrice = product.selling_price_per_box || (product.selling_price_per_piece * product.pieces_per_box)
             subtotal = quantity * boxPrice
             profit = quantity * (boxPrice - buyingPrice)
           } else {
@@ -623,14 +623,14 @@ export function AdvancedStockOutForm({ onTransactionSuccess }: AdvancedStockOutF
                                             className="text-xs"
                                           >
                                             {p.unit_type === "box" 
-                                              ? `${p.quantity} boxes (${(p.quantity * (p.pieces_per_box || 1)) + (p.remaining_pieces || 0)} pieces total)`
-                                              : `Stock: ${p.quantity}`
+                                              ? `${p.boxes_in_stock} boxes (${(p.boxes_in_stock * (p.pieces_per_box || 1)) + (p.open_box_pieces || 0)} pieces total)`
+                                              : `Stock: ${p.boxes_in_stock}`
                                             }
                                           </Badge>
                                           <span className="text-xs text-muted-foreground">
-                                            Piece: {p.selling_price?.toLocaleString()} RWF
-                                            {p.unit_type === "box" && p.box_selling_price && (
-                                              <> | Box: {p.box_selling_price?.toLocaleString()} RWF</>
+                                            Piece: {p.selling_price_per_piece?.toLocaleString()} RWF
+                                            {p.unit_type === "box" && p.selling_price_per_box && (
+                                              <> | Box: {p.selling_price_per_box?.toLocaleString()} RWF</>
                                             )}
                                           </span>
                                         </div>

@@ -65,7 +65,7 @@ export function StockOutForm({ products }: StockOutFormProps) {
       return { totalPieces: 0, boxesDeducted: 0, piecesDeducted: 0, remainingPieces: 0, canSell: false }
     }
 
-    const { unit_type, pieces_per_box, quantity: stockQuantity, remaining_pieces } = selectedProduct
+    const { unit_type, pieces_per_box, boxes_in_stock: stockQuantity, open_box_pieces } = selectedProduct
 
     // For non-box products, simple quantity check
     if (unit_type !== "box" || !pieces_per_box) {
@@ -80,7 +80,7 @@ export function StockOutForm({ products }: StockOutFormProps) {
     }
 
     // For box products
-    const totalAvailablePieces = (stockQuantity * pieces_per_box) + (remaining_pieces || 0)
+    const totalAvailablePieces = (stockQuantity * pieces_per_box) + (open_box_pieces || 0)
 
     if (formData.unit_sold === "box") {
       // Selling whole boxes
@@ -89,7 +89,7 @@ export function StockOutForm({ products }: StockOutFormProps) {
         totalPieces: totalAvailablePieces,
         boxesDeducted: quantity,
         piecesDeducted: piecesNeeded,
-        remainingPieces: remaining_pieces || 0,
+        remainingPieces: open_box_pieces || 0,
         canSell: quantity <= stockQuantity,
         errorMessage: quantity > stockQuantity ? `Only ${stockQuantity} boxes available` : undefined
       }
@@ -102,15 +102,15 @@ export function StockOutForm({ products }: StockOutFormProps) {
           piecesDeducted: quantity,
           remainingPieces: 0,
           canSell: false,
-          errorMessage: `Only ${totalAvailablePieces} pieces available (${stockQuantity} boxes × ${pieces_per_box} pieces + ${remaining_pieces || 0} remaining)`
+          errorMessage: `Only ${totalAvailablePieces} pieces available (${stockQuantity} boxes × ${pieces_per_box} pieces + ${open_box_pieces || 0} remaining)`
         }
       }
 
       // Calculate how many boxes need to be opened
-      let piecesFromRemaining = Math.min(quantity, remaining_pieces || 0)
+      let piecesFromRemaining = Math.min(quantity, open_box_pieces || 0)
       let piecesStillNeeded = quantity - piecesFromRemaining
       let boxesToOpen = piecesStillNeeded > 0 ? Math.ceil(piecesStillNeeded / pieces_per_box) : 0
-      let finalRemainingPieces = (remaining_pieces || 0) - piecesFromRemaining
+      let finalRemainingPieces = (open_box_pieces || 0) - piecesFromRemaining
       
       if (boxesToOpen > 0) {
         finalRemainingPieces += (boxesToOpen * pieces_per_box) - piecesStillNeeded
@@ -127,7 +127,7 @@ export function StockOutForm({ products }: StockOutFormProps) {
   }
 
   const stockCalc = calculateStock()
-  const totalAmount = quantity * (selectedProduct?.selling_price ?? 0)
+  const totalAmount = quantity * (selectedProduct?.selling_price_per_piece ?? 0)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -179,7 +179,7 @@ export function StockOutForm({ products }: StockOutFormProps) {
       // Update stock - handle box products properly
       if (selectedProduct?.unit_type === "box" && selectedProduct.pieces_per_box && formData.unit_sold === "piece") {
         // Selling pieces from box product
-        const currentRemaining = selectedProduct.remaining_pieces || 0
+        const currentRemaining = selectedProduct.open_box_pieces || 0
         let piecesFromRemaining = Math.min(quantity, currentRemaining)
         let piecesStillNeeded = quantity - piecesFromRemaining
         let boxesToOpen = piecesStillNeeded > 0 ? Math.ceil(piecesStillNeeded / selectedProduct.pieces_per_box) : 0
@@ -189,21 +189,21 @@ export function StockOutForm({ products }: StockOutFormProps) {
           finalRemainingPieces += (boxesToOpen * selectedProduct.pieces_per_box) - piecesStillNeeded
         }
         
-        const newBoxQuantity = selectedProduct.quantity - boxesToOpen
+        const newBoxQuantity = selectedProduct.boxes_in_stock - boxesToOpen
         
         await supabase
           .from("products")
           .update({ 
-            quantity: newBoxQuantity,
-            remaining_pieces: finalRemainingPieces
+            boxes_in_stock: newBoxQuantity,
+            open_box_pieces: finalRemainingPieces
           })
           .eq("id", formData.product_id)
       } else {
         // Simple stock update for regular products or box sales
-        const newQuantity = (selectedProduct?.quantity ?? 0) - (formData.unit_sold === "box" ? quantity : stockCalc.boxesDeducted)
+        const newQuantity = (selectedProduct?.boxes_in_stock ?? 0) - (formData.unit_sold === "box" ? quantity : stockCalc.boxesDeducted)
         await supabase
           .from("products")
-          .update({ quantity: newQuantity })
+          .update({ boxes_in_stock: newQuantity })
           .eq("id", formData.product_id)
       }
 
@@ -317,8 +317,8 @@ export function StockOutForm({ products }: StockOutFormProps) {
                 <SelectContent>
                   {products.map((product) => {
                     const totalPieces = product.unit_type === "box" && product.pieces_per_box 
-                      ? (product.quantity * product.pieces_per_box) + (product.remaining_pieces || 0)
-                      : product.quantity
+                      ? (product.boxes_in_stock * product.pieces_per_box) + (product.open_box_pieces || 0)
+                      : product.boxes_in_stock
                     
                     return (
                       <SelectItem key={product.id} value={product.id} disabled={totalPieces === 0}>
@@ -331,7 +331,7 @@ export function StockOutForm({ products }: StockOutFormProps) {
                             {product.unit_type === "box" && product.pieces_per_box ? (
                               <div>
                                 <Badge variant="outline" className="text-xs">
-                                  {product.quantity} boxes
+                                  {product.boxes_in_stock} boxes
                                 </Badge>
                                 <p className="text-xs text-muted-foreground mt-1">
                                   {totalPieces} pieces total
@@ -407,7 +407,7 @@ export function StockOutForm({ products }: StockOutFormProps) {
                 min="1"
                 max={selectedProduct?.unit_type === "box" && formData.unit_sold === "piece" 
                   ? stockCalc.totalPieces
-                  : selectedProduct?.quantity || 999}
+                  : selectedProduct?.boxes_in_stock || 999}
                 placeholder="0"
                 value={formData.quantity}
                 onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
@@ -451,7 +451,7 @@ export function StockOutForm({ products }: StockOutFormProps) {
                     )}
                     <div className="flex justify-between pt-2 border-t">
                       <span className="text-muted-foreground">Unit price:</span>
-                      <span className="font-medium">{selectedProduct.selling_price.toLocaleString()} RWF</span>
+                      <span className="font-medium">{selectedProduct.selling_price_per_piece.toLocaleString()} RWF</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="font-medium">Total amount:</span>

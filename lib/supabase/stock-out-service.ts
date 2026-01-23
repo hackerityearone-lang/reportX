@@ -1,5 +1,5 @@
 import { createClient } from './client'
-import type { Product, StockOutTransaction } from '@/lib/types'
+import type { Product, StockTransaction } from '@/lib/types'
 
 const supabase = createClient()
 

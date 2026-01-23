@@ -53,7 +53,7 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
         selling_price_per_piece: (product.selling_price_per_piece || 0).toString(),
         pieces_per_box: (product.pieces_per_box || "").toString(),
         allow_retail_sales: product.allow_retail_sales ?? true,
-        remaining_pieces: (product.remaining_pieces || 0).toString(),
+        remaining_pieces: (product.open_box_pieces || 0).toString(),
         image_url: product.image_url || "",
       })
     }

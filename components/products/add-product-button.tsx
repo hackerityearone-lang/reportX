@@ -1,1 +1,20 @@
-"use client"\n\nimport { useState } from "react"\nimport { Button } from "@/components/ui/button"\nimport { Plus } from "lucide-react"\nimport { AddProductDialog } from "./add-product-dialog"\n\nexport function AddProductButton() {\n  const [open, setOpen] = useState(false)\n\n  return (\n    <>\n      <Button onClick={() => setOpen(true)} size="lg" className="gap-2">\n        <Plus className="h-5 w-5" />\n        Add Product\n      </Button>\n      <AddProductDialog open={open} onOpenChange={setOpen} />\n    </>\n  )\n}
+"use client"
+
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Plus } from "lucide-react"
+import { AddProductDialog } from "./add-product-dialog"
+
+export function AddProductButton() {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <>
+      <Button onClick={() => setOpen(true)} size="lg" className="gap-2">
+        <Plus className="h-5 w-5" />
+        Add Product
+      </Button>
+      <AddProductDialog open={open} onOpenChange={setOpen} />
+    </>
+  )
+}

@@ -1,1 +1,229 @@
-"use client"\n\nimport { useState } from "react"\nimport { useRouter } from "next/navigation"\nimport { createClient } from "@/lib/supabase/client"\nimport { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"\nimport { Button } from "@/components/ui/button"\nimport { Input } from "@/components/ui/input"\nimport { Label } from "@/components/ui/label"\nimport { Textarea } from "@/components/ui/textarea"\nimport { Card, CardContent } from "@/components/ui/card"\nimport { Badge } from "@/components/ui/badge"\nimport { Loader2, Plus, CreditCard, AlertCircle } from "lucide-react"\nimport { toast } from "sonner"\n\ninterface AddCreditDialogProps {\n  customerName: string\n  existingCredits: number\n  open: boolean\n  onOpenChange: (open: boolean) => void\n}\n\nexport function AddCreditDialog({ customerName, existingCredits, open, onOpenChange }: AddCreditDialogProps) {\n  const [isLoading, setIsLoading] = useState(false)\n  const [error, setError] = useState<string | null>(null)\n  const router = useRouter()\n\n  const [formData, setFormData] = useState({\n    amount: \"\",\n    notes: \"\",\n  })\n\n  const resetForm = () => {\n    setFormData({\n      amount: \"\",\n      notes: \"\",\n    })\n    setError(null)\n  }\n\n  const handleSubmit = async (e: React.FormEvent) => {\n    e.preventDefault()\n    setIsLoading(true)\n    setError(null)\n\n    const amount = Number.parseFloat(formData.amount)\n    if (amount <= 0) {\n      setError(\"Amount must be greater than 0\")\n      setIsLoading(false)\n      return\n    }\n\n    const supabase = createClient()\n    const { data: { user } } = await supabase.auth.getUser()\n\n    if (!user) {\n      setError(\"You must be logged in\")\n      setIsLoading(false)\n      return\n    }\n\n    try {\n      // Create a new credit record\n      const { error: creditError } = await supabase\n        .from(\"credits\")\n        .insert({\n          customer_name: customerName,\n          amount: amount,\n          amount_owed: amount,\n          amount_paid: 0,\n          status: \"PENDING\",\n          is_active: true,\n          notes: formData.notes.trim() || null,\n          user_id: user.id,\n          transaction_id: null, // This is an additional credit, not from a sale\n        })\n\n      if (creditError) {\n        setError(creditError.message)\n        setIsLoading(false)\n        return\n      }\n\n      toast.success(`Added ${amount.toLocaleString()} RWF credit for ${customerName}`)\n      resetForm()\n      onOpenChange(false)\n      router.refresh()\n    } catch (err) {\n      setError(\"An unexpected error occurred\")\n    } finally {\n      setIsLoading(false)\n    }\n  }\n\n  return (\n    <Dialog open={open} onOpenChange={onOpenChange}>\n      <DialogContent className=\"max-w-md\">\n        <DialogHeader>\n          <DialogTitle className=\"flex items-center gap-2\">\n            <Plus className=\"h-5 w-5\" />\n            Add Additional Credit\n          </DialogTitle>\n          <DialogDescription>\n            Add more credit for {customerName} before paying existing credits\n          </DialogDescription>\n        </DialogHeader>\n\n        <form onSubmit={handleSubmit} className=\"space-y-6\">\n          {/* Customer Info */}\n          <Card className=\"bg-secondary/20\">\n            <CardContent className=\"p-4\">\n              <div className=\"flex items-center justify-between\">\n                <div>\n                  <p className=\"font-medium\">{customerName}</p>\n                  <p className=\"text-sm text-muted-foreground\">Current Credits</p>\n                </div>\n                <div className=\"text-right\">\n                  <Badge variant=\"secondary\" className=\"text-lg px-3 py-1\">\n                    {existingCredits.toLocaleString()} RWF\n                  </Badge>\n                </div>\n              </div>\n            </CardContent>\n          </Card>\n\n          {/* Amount Input */}\n          <div className=\"space-y-2\">\n            <Label htmlFor=\"credit-amount\" className=\"text-base font-medium\">\n              Additional Credit Amount * (RWF)\n            </Label>\n            <Input\n              id=\"credit-amount\"\n              type=\"number\"\n              min=\"1\"\n              step=\"0.01\"\n              placeholder=\"0.00\"\n              value={formData.amount}\n              onChange={(e) => setFormData({ ...formData, amount: e.target.value })}\n              className=\"h-12 text-lg\"\n              required\n            />\n          </div>\n\n          {/* Notes */}\n          <div className=\"space-y-2\">\n            <Label htmlFor=\"credit-notes\" className=\"text-base font-medium\">\n              Notes (Optional)\n            </Label>\n            <Textarea\n              id=\"credit-notes\"\n              placeholder=\"Reason for additional credit...\"\n              value={formData.notes}\n              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}\n              className=\"min-h-[80px]\"\n            />\n          </div>\n\n          {/* Total Preview */}\n          {formData.amount && Number.parseFloat(formData.amount) > 0 && (\n            <Card className=\"bg-warning/5 border-warning/20\">\n              <CardContent className=\"p-4\">\n                <div className=\"flex items-center gap-2 mb-2\">\n                  <CreditCard className=\"h-4 w-4 text-warning\" />\n                  <h4 className=\"font-medium\">Credit Summary</h4>\n                </div>\n                <div className=\"space-y-2 text-sm\">\n                  <div className=\"flex justify-between\">\n                    <span className=\"text-muted-foreground\">Current credits:</span>\n                    <span className=\"font-medium\">{existingCredits.toLocaleString()} RWF</span>\n                  </div>\n                  <div className=\"flex justify-between\">\n                    <span className=\"text-muted-foreground\">Additional credit:</span>\n                    <span className=\"font-medium\">{Number.parseFloat(formData.amount).toLocaleString()} RWF</span>\n                  </div>\n                  <div className=\"flex justify-between pt-2 border-t border-warning/20\">\n                    <span className=\"font-medium\">Total credits:</span>\n                    <span className=\"text-lg font-bold text-warning\">\n                      {(existingCredits + Number.parseFloat(formData.amount)).toLocaleString()} RWF\n                    </span>\n                  </div>\n                </div>\n              </CardContent>\n            </Card>\n          )}\n\n          {/* Error Display */}\n          {error && (\n            <div className=\"bg-destructive/10 border border-destructive/30 rounded-lg p-4\">\n              <div className=\"flex items-center gap-2\">\n                <AlertCircle className=\"h-4 w-4 text-destructive\" />\n                <p className=\"text-sm text-destructive font-medium\">{error}</p>\n              </div>\n            </div>\n          )}\n\n          {/* Action Buttons */}\n          <div className=\"flex flex-col sm:flex-row gap-3 pt-4\">\n            <Button\n              type=\"button\"\n              variant=\"outline\"\n              onClick={() => onOpenChange(false)}\n              className=\"h-12 flex-1\"\n              disabled={isLoading}\n            >\n              Cancel\n            </Button>\n            <Button\n              type=\"submit\"\n              className=\"h-12 flex-1\"\n              disabled={isLoading || !formData.amount || Number.parseFloat(formData.amount) <= 0}\n            >\n              {isLoading ? (\n                <>\n                  <Loader2 className=\"mr-2 h-4 w-4 animate-spin\" />\n                  Adding...\n                </>\n              ) : (\n                <>\n                  <Plus className=\"mr-2 h-4 w-4\" />\n                  Add Credit\n                </>\n              )}\n            </Button>\n          </div>\n        </form>\n      </DialogContent>\n    </Dialog>\n  )\n}
+"use client"
+
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { createClient } from "@/lib/supabase/client"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Loader2, Plus, CreditCard, AlertCircle } from "lucide-react"
+import { toast } from "sonner"
+
+interface AddCreditDialogProps {
+  customerName: string
+  existingCredits: number
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}
+
+export function AddCreditDialog({ customerName, existingCredits, open, onOpenChange }: AddCreditDialogProps) {
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const router = useRouter()
+
+  const [formData, setFormData] = useState({
+    amount: "",
+    notes: "",
+  })
+
+  const resetForm = () => {
+    setFormData({
+      amount: "",
+      notes: "",
+    })
+    setError(null)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+    setError(null)
+
+    const amount = Number.parseFloat(formData.amount)
+    if (amount <= 0) {
+      setError("Amount must be greater than 0")
+      setIsLoading(false)
+      return
+    }
+
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      setError("You must be logged in")
+      setIsLoading(false)
+      return
+    }
+
+    try {
+      // Create a new credit record
+      const { error: creditError } = await supabase
+        .from("credits")
+        .insert({
+          customer_name: customerName,
+          amount: amount,
+          amount_owed: amount,
+          amount_paid: 0,
+          status: "PENDING",
+          is_active: true,
+          notes: formData.notes.trim() || null,
+          user_id: user.id,
+          transaction_id: null, // This is an additional credit, not from a sale
+        })
+
+      if (creditError) {
+        setError(creditError.message)
+        setIsLoading(false)
+        return
+      }
+
+      toast.success(`Added ${amount.toLocaleString()} RWF credit for ${customerName}`)
+      resetForm()
+      onOpenChange(false)
+      router.refresh()
+    } catch (err) {
+      setError("An unexpected error occurred")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Plus className="h-5 w-5" />
+            Add Additional Credit
+          </DialogTitle>
+          <DialogDescription>
+            Add more credit for {customerName} before paying existing credits
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Customer Info */}
+          <Card className="bg-secondary/20">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">{customerName}</p>
+                  <p className="text-sm text-muted-foreground">Current Credits</p>
+                </div>
+                <div className="text-right">
+                  <Badge variant="secondary" className="text-lg px-3 py-1">
+                    {existingCredits.toLocaleString()} RWF
+                  </Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Amount Input */}
+          <div className="space-y-2">
+            <Label htmlFor="credit-amount" className="text-base font-medium">
+              Additional Credit Amount * (RWF)
+            </Label>
+            <Input
+              id="credit-amount"
+              type="number"
+              min="1"
+              step="0.01"
+              placeholder="0.00"
+              value={formData.amount}
+              onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+              className="h-12 text-lg"
+              required
+            />
+          </div>
+
+          {/* Notes */}
+          <div className="space-y-2">
+            <Label htmlFor="credit-notes" className="text-base font-medium">
+              Notes (Optional)
+            </Label>
+            <Textarea
+              id="credit-notes"
+              placeholder="Reason for additional credit..."
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              className="min-h-[80px]"
+            />
+          </div>
+
+          {/* Total Preview */}
+          {formData.amount && Number.parseFloat(formData.amount) > 0 && (
+            <Card className="bg-warning/5 border-warning/20">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <CreditCard className="h-4 w-4 text-warning" />
+                  <h4 className="font-medium">Credit Summary</h4>
+                </div>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Current credits:</span>
+                    <span className="font-medium">{existingCredits.toLocaleString()} RWF</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Additional credit:</span>
+                    <span className="font-medium">{Number.parseFloat(formData.amount).toLocaleString()} RWF</span>
+                  </div>
+                  <div className="flex justify-between pt-2 border-t border-warning/20">
+                    <span className="font-medium">Total credits:</span>
+                    <span className="text-lg font-bold text-warning">
+                      {(existingCredits + Number.parseFloat(formData.amount)).toLocaleString()} RWF
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Error Display */}
+          {error && (
+            <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-destructive" />
+                <p className="text-sm text-destructive font-medium">{error}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row gap-3 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              className="h-12 flex-1"
+              disabled={isLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              className="h-12 flex-1"
+              disabled={isLoading || !formData.amount || Number.parseFloat(formData.amount) <= 0}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Adding...
+                </>
+              ) : (
+                <>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Credit
+                </>
+              )}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}

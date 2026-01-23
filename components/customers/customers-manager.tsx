@@ -65,7 +65,7 @@ export function CustomersManager() {
         } as any)
       }
 
-      setFormData({ name: "", phone: "", email: "" })
+      setFormData({ name: "", phone: "", tin_number: "" })
       setEditingId(null)
       setShowForm(false)
       await loadCustomers()
@@ -99,7 +99,7 @@ export function CustomersManager() {
 
   const handleCancel = () => {
     setShowForm(false)
-    setFormData({ name: "", phone: "", email: "" })
+    setFormData({ name: "", phone: "", tin_number: "" })
     setEditingId(null)
   }
 

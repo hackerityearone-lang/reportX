@@ -100,7 +100,7 @@ export const stockOutService = {
             user_id: user.id,
             name: request.customer.name,
             phone: request.customer.phone || null,
-            email: request.customer.email || null,
+            tin_number: request.customer.tin_number || null,
             total_credit: 0,
             is_archived: false,
           })
@@ -397,7 +397,7 @@ export const stockOutService = {
             user_id: user.id,
             name: request.customer.name,
             phone: request.customer.phone || null,
-            email: request.customer.email || null,
+            tin_number: request.customer.tin_number || null,
             total_credit: 0,
             is_archived: false,
           })

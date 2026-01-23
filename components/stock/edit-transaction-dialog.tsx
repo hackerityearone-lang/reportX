@@ -70,7 +70,7 @@ export function EditTransactionDialog({ transaction, open, onOpenChange }: EditT
       
       setFormData({
         quantity: (transaction.quantity || transaction.stock_out_items?.[0]?.quantity || 1).toString(),
-        unit_sold: (transaction.unit_sold && transaction.unit_sold !== "" && (transaction.unit_sold === "box" || transaction.unit_sold === "piece")) ? transaction.unit_sold as UnitType : "piece",
+        unit_sold: (transaction.unit_sold === "box" || transaction.unit_sold === "piece") ? transaction.unit_sold as UnitType : "piece",
         selling_price: calculatedPrice.toString(),
         notes: transaction.notes || "",
       })

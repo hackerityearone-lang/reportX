@@ -382,7 +382,7 @@ export function AdvancedStockOutForm({ onTransactionSuccess }: AdvancedStockOutF
       const apiItems = items.map((item) => ({
         product_id: item.product_id,
         quantity: item.quantity,
-        unit_type: item.unit_sold === "box" ? "boxes" : "pieces",
+        unit_type: (item.unit_sold === "box" ? "boxes" : "pieces") as 'pieces' | 'boxes',
         selling_price: item.selling_price,
         buying_price: item.buying_price,
       }))
@@ -867,7 +867,6 @@ export function AdvancedStockOutForm({ onTransactionSuccess }: AdvancedStockOutF
                   <div>
                     <p className="font-medium">{selectedCustomer.name}</p>
                     {selectedCustomer.phone && <p className="text-sm text-muted-foreground">{selectedCustomer.phone}</p>}
-                    {selectedCustomer.email && <p className="text-sm text-muted-foreground">{selectedCustomer.email}</p>}
                   </div>
                   <Button
                     type="button"

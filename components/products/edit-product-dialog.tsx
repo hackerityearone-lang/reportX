@@ -50,7 +50,7 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
         price: product.price.toString(),
         selling_price: (product.selling_price || 0).toString(),
         box_selling_price: (product.box_selling_price || "").toString(),
-        unit_type: (product.unit_type && product.unit_type !== "" && (product.unit_type === "box" || product.unit_type === "piece")) ? product.unit_type : "piece",
+        unit_type: (product.unit_type === "box" || product.unit_type === "piece") ? product.unit_type : "piece",
         pieces_per_box: (product.pieces_per_box || "").toString(),
         allow_retail_sales: product.allow_retail_sales ?? true,
         remaining_pieces: (product.remaining_pieces || 0).toString(),

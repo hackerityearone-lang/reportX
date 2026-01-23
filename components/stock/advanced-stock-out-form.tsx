@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Trash2, Plus, DollarSign, Package, AlertTriangle, CheckCircle2, User, Search } from "lucide-react"
+import { Loader2, Trash2, Plus, DollarSign, Package, AlertTriangle, CheckCircle2, User, Search, Box } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -235,20 +235,22 @@ export function AdvancedStockOutForm({ onTransactionSuccess }: AdvancedStockOutF
 
   const handleProductSelect = (itemId: string, productId: string) => {
     const product = products.find((p) => p.id === productId)
-    const defaultUnitSold = saleMode === "wholesale" && product?.unit_type === "box" ? "box" : "piece"
     
-    // Set appropriate selling price based on sale mode and unit type
-    let sellingPrice = product?.selling_price || 0 // Default to piece price
-    if (product?.unit_type === "box" && saleMode === "wholesale") {
-      sellingPrice = product?.box_selling_price || (product?.selling_price * (product?.pieces_per_box || 1))
-    }
+    // Set unit type and price based on sale mode
+    const unitSold = saleMode === "wholesale" ? "box" : "piece"
+    const sellingPrice = saleMode === "wholesale" 
+      ? product?.selling_price_per_box || 0
+      : product?.selling_price_per_piece || 0
     
     updateItem(itemId, {
       product_id: productId,
-      unit_sold: defaultUnitSold,
-      buying_price: product?.price || 0,
+      unit_sold: unitSold,
+      buying_price: saleMode === "wholesale" 
+        ? product?.buy_price_per_box || 0
+        : product?.buy_price_per_piece || 0,
       selling_price: sellingPrice,
     })
+    
     // Save selected product name and clear search
     setSelectedProductNames({ ...selectedProductNames, [itemId]: product?.name || "" })
     setProductSearchQueries({ ...productSearchQueries, [itemId]: "" })
@@ -285,29 +287,21 @@ export function AdvancedStockOutForm({ onTransactionSuccess }: AdvancedStockOutF
     items.every((item) => item.product_id && item.quantity > 0 && item.selling_price > 0) &&
     (!includeCustomer || (selectedCustomer || (newCustomerName && newCustomerPhone)))
 
-  // Check stock availability
+  // Check stock availability with new logic
   const stockErrors = items.map((item) => {
     const product = products.find((p) => p.id === item.product_id)
     if (!product || item.quantity <= 0) return null
     
-    // Calculate required stock based on unit type
-    if (product.unit_type === "box" && product.pieces_per_box) {
-      if (item.unit_sold === "piece") {
-        // Selling pieces - check total available pieces
-        const totalPieces = (product.quantity * product.pieces_per_box) + (product.remaining_pieces || 0)
-        if (item.quantity > totalPieces) {
-          return `${product.name}: need ${item.quantity} pieces, have ${totalPieces} pieces available`
-        }
-      } else {
-        // Selling boxes - check box quantity
-        if (item.quantity > product.quantity) {
-          return `${product.name}: need ${item.quantity} boxes, have ${product.quantity} boxes available`
-        }
+    if (saleMode === "wholesale") {
+      // WHOLESALE: Only check boxes
+      if (item.quantity > product.boxes_in_stock) {
+        return `${product.name}: need ${item.quantity} boxes, have ${product.boxes_in_stock} boxes available`
       }
     } else {
-      // Regular product - check quantity
-      if (item.quantity > product.quantity) {
-        return `${product.name}: need ${item.quantity}, have ${product.quantity} available`
+      // RETAIL: Check available pieces (open + boxes)
+      const availablePieces = product.open_box_pieces + (product.boxes_in_stock * product.pieces_per_box)
+      if (item.quantity > availablePieces) {
+        return `${product.name}: need ${item.quantity} pieces, have ${availablePieces} pieces available`
       }
     }
     
@@ -454,68 +448,68 @@ export function AdvancedStockOutForm({ onTransactionSuccess }: AdvancedStockOutF
                   <Package className="h-5 w-5 text-primary" />
                   <div>
                     <Label className="text-base font-medium">Sale Mode</Label>
-                    <p className="text-sm text-muted-foreground">Choose wholesale or retail</p>
+                    <p className="text-sm text-muted-foreground">Choose wholesale (boxes) or retail (pieces)</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Label htmlFor="sale-mode" className={saleMode === "wholesale" ? "font-medium" : "text-muted-foreground"}>
-                    Wholesale
+                <div className="flex items-center gap-6">
+                  <Label className={`flex items-center gap-2 cursor-pointer px-4 py-2 rounded-lg border-2 transition-colors ${
+                    saleMode === "wholesale" 
+                      ? "border-primary bg-primary/10 text-primary font-medium" 
+                      : "border-border hover:border-primary/50"
+                  }`}>
+                    <input
+                      type="radio"
+                      name="saleMode"
+                      value="wholesale"
+                      checked={saleMode === "wholesale"}
+                      onChange={(e) => {
+                        setSaleMode("wholesale")
+                        // Update all items to box mode
+                        setItems(items.map(item => {
+                          const product = products.find(p => p.id === item.product_id)
+                          if (!product) return item
+                          
+                          return {
+                            ...item,
+                            unit_sold: "box",
+                            selling_price: product.selling_price_per_box || 0
+                          }
+                        }))
+                      }}
+                      className="sr-only"
+                    />
+                    <Box className="h-4 w-4" />
+                    Wholesale (Boxes)
                   </Label>
-                  <input
-                    type="checkbox"
-                    id="sale-mode"
-                    checked={saleMode === "retail"}
-                    onChange={(e) => {
-                      const newSaleMode = e.target.checked ? "retail" : "wholesale"
-                      setSaleMode(newSaleMode)
-                      
-                      // Update all items with products to use appropriate prices and units
-                      setItems(items.map(item => {
-                        const product = products.find(p => p.id === item.product_id)
-                        if (!product) return item
-                        
-                        let newUnitSold = item.unit_sold
-                        let newSellingPrice = item.selling_price
-                        
-                        if (product.unit_type === "box") {
-                          if (newSaleMode === "wholesale") {
-                            // Switch to box sales for wholesale
-                            newUnitSold = "box"
-                            newSellingPrice = product.box_selling_price || (product.selling_price * (product.pieces_per_box || 1))
-                          } else {
-                            // Switch to piece sales for retail
-                            newUnitSold = "piece"
-                            newSellingPrice = product.selling_price
+                  
+                  <Label className={`flex items-center gap-2 cursor-pointer px-4 py-2 rounded-lg border-2 transition-colors ${
+                    saleMode === "retail" 
+                      ? "border-primary bg-primary/10 text-primary font-medium" 
+                      : "border-border hover:border-primary/50"
+                  }`}>
+                    <input
+                      type="radio"
+                      name="saleMode"
+                      value="retail"
+                      checked={saleMode === "retail"}
+                      onChange={(e) => {
+                        setSaleMode("retail")
+                        // Update all items to piece mode
+                        setItems(items.map(item => {
+                          const product = products.find(p => p.id === item.product_id)
+                          if (!product) return item
+                          
+                          return {
+                            ...item,
+                            unit_sold: "piece",
+                            selling_price: product.selling_price_per_piece || 0
                           }
-                        }
-                        
-                        // Recalculate subtotal and profit
-                        let subtotal = item.quantity * newSellingPrice
-                        let profit = item.quantity * (newSellingPrice - item.buying_price)
-                        
-                        if (product.unit_type === "box" && product.pieces_per_box) {
-                          if (newUnitSold === "box") {
-                            subtotal = item.quantity * newSellingPrice
-                            profit = item.quantity * (newSellingPrice - item.buying_price)
-                          } else {
-                            subtotal = item.quantity * newSellingPrice
-                            profit = item.quantity * (newSellingPrice - (item.buying_price / product.pieces_per_box))
-                          }
-                        }
-                        
-                        return {
-                          ...item,
-                          unit_sold: newUnitSold,
-                          selling_price: newSellingPrice,
-                          subtotal,
-                          profit
-                        }
-                      }))
-                    }}
-                    className="h-4 w-4 rounded border-gray-300"
-                  />
-                  <Label htmlFor="sale-mode" className={saleMode === "retail" ? "font-medium" : "text-muted-foreground"}>
-                    Retail
+                        }))
+                      }}
+                      className="sr-only"
+                    />
+                    <Package className="h-4 w-4" />
+                    Retail (Pieces)
                   </Label>
                 </div>
               </div>
@@ -654,51 +648,19 @@ export function AdvancedStockOutForm({ onTransactionSuccess }: AdvancedStockOutF
                             </div>
                           </div>
 
-                          {/* Unit Type Selection for Box Products */}
-                          {product?.unit_type === "box" && product.allow_retail_sales && (
-                            <div>
-                              <Label className="text-sm">Unit Type *</Label>
-                              <Select
-                                value={item.unit_sold}
-                                onValueChange={(value: UnitType) => {
-                                  const newSellingPrice = value === "box" 
-                                    ? (product.box_selling_price || (product.selling_price * (product.pieces_per_box || 1)))
-                                    : product.selling_price
-                                  updateItem(item.id, { 
-                                    unit_sold: value,
-                                    selling_price: newSellingPrice
-                                  })
-                                }}
-                              >
-                                <SelectTrigger className="h-10">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="box">
-                                    <div className="flex items-center gap-2">
-                                      <Package className="h-4 w-4" />
-                                      Whole Box ({product.pieces_per_box} pieces)
-                                    </div>
-                                  </SelectItem>
-                                  <SelectItem value="piece">
-                                    <div className="flex items-center gap-2">
-                                      <Package className="h-4 w-4" />
-                                      Individual Pieces
-                                    </div>
-                                  </SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          )}
+                          {/* Unit Type - Hidden, controlled by sale mode */}
+                          <input type="hidden" value={item.unit_sold} />
 
                           <div>
-                            <Label className="text-sm">Quantity * ({item.unit_sold === "box" ? "boxes" : "pieces"})</Label>
+                            <Label className="text-sm">
+                              Quantity * ({saleMode === "wholesale" ? "boxes" : "pieces"})
+                            </Label>
                             <Input
                               type="number"
                               min="1"
-                              max={product?.unit_type === "box" && item.unit_sold === "piece" 
-                                ? (product.quantity * (product.pieces_per_box || 1)) + (product.remaining_pieces || 0)
-                                : product?.quantity || 999}
+                              max={saleMode === "wholesale" 
+                                ? product?.boxes_in_stock || 999
+                                : (product?.open_box_pieces || 0) + ((product?.boxes_in_stock || 0) * (product?.pieces_per_box || 1))}
                               value={item.quantity || ""}
                               onChange={(e) =>
                                 updateItem(item.id, { quantity: Number.parseInt(e.target.value) || 0 })
@@ -706,11 +668,19 @@ export function AdvancedStockOutForm({ onTransactionSuccess }: AdvancedStockOutF
                               className="h-10"
                               placeholder="0"
                             />
+                            {saleMode === "retail" && product && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Available: {product.open_box_pieces} open + {product.boxes_in_stock} boxes
+                                {item.quantity > product.open_box_pieces && (
+                                  <span className="text-warning ml-1">⚠ Will open 1 box</span>
+                                )}
+                              </p>
+                            )}
                           </div>
 
                           <div>
                             <Label className="text-sm">
-                              Selling Price * (RWF per {item.unit_sold === "box" ? "box" : "piece"})
+                              {saleMode === "wholesale" ? "Box Price" : "Piece Price"} * (RWF)
                             </Label>
                             <Input
                               type="number"
@@ -720,13 +690,13 @@ export function AdvancedStockOutForm({ onTransactionSuccess }: AdvancedStockOutF
                                 updateItem(item.id, { selling_price: Number.parseFloat(e.target.value) || 0 })
                               }
                               className="h-10"
-                              placeholder={item.unit_sold === "box" ? "Box price" : "Piece price"}
+                              placeholder={saleMode === "wholesale" ? "Box price" : "Piece price"}
                             />
-                            {product?.unit_type === "box" && product.pieces_per_box && (
+                            {product && (
                               <p className="text-xs text-muted-foreground mt-1">
-                                {item.unit_sold === "box" 
-                                  ? `≈ ${(item.selling_price / (product.pieces_per_box || 1)).toFixed(2)} RWF per piece`
-                                  : `≈ ${(item.selling_price * (product.pieces_per_box || 1)).toFixed(2)} RWF per box`
+                                {saleMode === "wholesale" 
+                                  ? `≈ ${((item.selling_price || 0) / (product.pieces_per_box || 1)).toFixed(2)} RWF per piece`
+                                  : `≈ ${((item.selling_price || 0) * (product.pieces_per_box || 1)).toFixed(2)} RWF per box`
                                 }
                               </p>
                             )}

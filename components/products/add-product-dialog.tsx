@@ -27,12 +27,12 @@ export function AddProductDialog({ open, onOpenChange }: EnhancedAddProductDialo
   const [formData, setFormData] = useState({
     name: "",
     brand: "",
-    quantity: "",
+    boxes_in_stock: "",
     min_stock_level: "10",
-    price: "",
-    selling_price: "",
-    box_selling_price: "",
-    unit_type: "piece" as UnitType,
+    buy_price_per_box: "",
+    selling_price_per_box: "",
+    buy_price_per_piece: "",
+    selling_price_per_piece: "",
     pieces_per_box: "",
     allow_retail_sales: true,
     image_url: "",
@@ -42,12 +42,12 @@ export function AddProductDialog({ open, onOpenChange }: EnhancedAddProductDialo
     setFormData({
       name: "",
       brand: "",
-      quantity: "",
+      boxes_in_stock: "",
       min_stock_level: "10",
-      price: "",
-      selling_price: "",
-      box_selling_price: "",
-      unit_type: "piece",
+      buy_price_per_box: "",
+      selling_price_per_box: "",
+      buy_price_per_piece: "",
+      selling_price_per_piece: "",
       pieces_per_box: "",
       allow_retail_sales: true,
       image_url: "",
@@ -60,8 +60,8 @@ export function AddProductDialog({ open, onOpenChange }: EnhancedAddProductDialo
     setIsLoading(true)
     setError(null)
 
-    if (formData.unit_type === "box" && !formData.pieces_per_box) {
-      setError("Pieces per box is required for box-type products")
+    if (!formData.pieces_per_box) {
+      setError("Pieces per box is required")
       setIsLoading(false)
       return
     }
@@ -71,13 +71,14 @@ export function AddProductDialog({ open, onOpenChange }: EnhancedAddProductDialo
     const productData = {
       name: formData.name.trim(),
       brand: formData.brand.trim(),
-      quantity: Number.parseInt(formData.quantity) || 0,
+      boxes_in_stock: Number.parseInt(formData.boxes_in_stock) || 0,
       min_stock_level: Number.parseInt(formData.min_stock_level) || 10,
-      price: Number.parseFloat(formData.price) || 0,
-      selling_price: Number.parseFloat(formData.selling_price) || 0,
-      box_selling_price: formData.unit_type === "box" && formData.box_selling_price ? Number.parseFloat(formData.box_selling_price) : null,
-      unit_type: formData.unit_type,
-      pieces_per_box: formData.unit_type === "box" ? Number.parseInt(formData.pieces_per_box) : null,
+      buy_price_per_box: Number.parseFloat(formData.buy_price_per_box) || 0,
+      selling_price_per_box: Number.parseFloat(formData.selling_price_per_box) || 0,
+      buy_price_per_piece: Number.parseFloat(formData.buy_price_per_piece) || 0,
+      selling_price_per_piece: Number.parseFloat(formData.selling_price_per_piece) || 0,
+      unit_type: "box_and_piece",
+      pieces_per_box: Number.parseInt(formData.pieces_per_box) || null,
       allow_retail_sales: formData.allow_retail_sales,
       remaining_pieces: 0,
       image_url: formData.image_url.trim() || null,
@@ -98,15 +99,15 @@ export function AddProductDialog({ open, onOpenChange }: EnhancedAddProductDialo
   }
 
   const calculateTotalPieces = () => {
-    if (formData.unit_type !== "box" || !formData.pieces_per_box || !formData.quantity) {
+    if (!formData.pieces_per_box || !formData.boxes_in_stock) {
       return null
     }
-    return Number.parseInt(formData.quantity) * Number.parseInt(formData.pieces_per_box)
+    return Number.parseInt(formData.boxes_in_stock) * Number.parseInt(formData.pieces_per_box)
   }
 
   const calculateProfitMargin = () => {
-    const buyingPrice = Number.parseFloat(formData.price) || 0
-    const sellingPrice = Number.parseFloat(formData.selling_price) || 0
+    const buyingPrice = Number.parseFloat(formData.buy_price_per_piece) || 0
+    const sellingPrice = Number.parseFloat(formData.selling_price_per_piece) || 0
     if (buyingPrice === 0) return 0
     return ((sellingPrice - buyingPrice) / buyingPrice) * 100
   }
@@ -167,97 +168,57 @@ export function AddProductDialog({ open, onOpenChange }: EnhancedAddProductDialo
             </div>
           </div>
 
+          {/* Box Configuration */}
           <div className="space-y-4">
-            <h3 className="text-lg font-medium">Unit Configuration</h3>
+            <h3 className="text-lg font-medium">Box Configuration</h3>
             
-            <div className="space-y-3">
-              <Label className="text-base">Unit Type *</Label>
-              <Select
-                value={formData.unit_type}
-                onValueChange={(value: UnitType) => {
-                  setFormData({ 
-                    ...formData, 
-                    unit_type: value,
-                    pieces_per_box: value === "piece" ? "" : formData.pieces_per_box,
-                    allow_retail_sales: value === "piece" ? true : formData.allow_retail_sales
-                  })
-                }}
-              >
-                <SelectTrigger className="h-12">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="piece">
-                    <div className="flex items-center gap-2">
-                      <Beer className="h-4 w-4" />
-                      <div>
-                        <p className="font-medium">Individual Pieces</p>
-                        <p className="text-xs text-muted-foreground">Sold as individual items</p>
-                      </div>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="box">
-                    <div className="flex items-center gap-2">
-                      <Package className="h-4 w-4" />
-                      <div>
-                        <p className="font-medium">Box/Case</p>
-                        <p className="text-xs text-muted-foreground">Contains multiple pieces</p>
-                      </div>
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <Card className="bg-secondary/20">
+              <CardContent className="p-4 space-y-4">
+                <div className="flex items-center gap-2">
+                  <Package className="h-4 w-4 text-primary" />
+                  <h4 className="font-medium">Box & Piece Settings</h4>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="pieces_per_box" className="text-base">Pieces per Box *</Label>
+                  <Input
+                    id="pieces_per_box"
+                    type="number"
+                    min="1"
+                    placeholder="e.g., 12"
+                    value={formData.pieces_per_box}
+                    onChange={(e) => setFormData({ ...formData, pieces_per_box: e.target.value })}
+                    className="h-12"
+                    required
+                  />
+                </div>
 
-            {formData.unit_type === "box" && (
-              <Card className="bg-secondary/20">
-                <CardContent className="p-4 space-y-4">
-                  <div className="flex items-center gap-2">
-                    <Package className="h-4 w-4 text-primary" />
-                    <h4 className="font-medium">Box Configuration</h4>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label htmlFor="allow_retail" className="text-base font-medium">
+                      Allow Retail Sales
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                      Allow selling individual pieces from boxes
+                    </p>
                   </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="pieces_per_box" className="text-base">Pieces per Box *</Label>
-                    <Input
-                      id="pieces_per_box"
-                      type="number"
-                      min="1"
-                      placeholder="e.g., 12"
-                      value={formData.pieces_per_box}
-                      onChange={(e) => setFormData({ ...formData, pieces_per_box: e.target.value })}
-                      className="h-12"
-                      required
-                    />
-                  </div>
+                  <Switch
+                    id="allow_retail"
+                    checked={formData.allow_retail_sales}
+                    onCheckedChange={(checked) => setFormData({ ...formData, allow_retail_sales: checked })}
+                  />
+                </div>
 
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label htmlFor="allow_retail" className="text-base font-medium">
-                        Allow Retail Sales
-                      </Label>
-                      <p className="text-sm text-muted-foreground">
-                        Allow selling individual pieces from boxes
-                      </p>
-                    </div>
-                    <Switch
-                      id="allow_retail"
-                      checked={formData.allow_retail_sales}
-                      onCheckedChange={(checked) => setFormData({ ...formData, allow_retail_sales: checked })}
-                    />
+                {calculateTotalPieces() && (
+                  <div className="flex items-center gap-2 p-3 bg-primary/5 rounded-lg">
+                    <Calculator className="h-4 w-4 text-primary" />
+                    <span className="text-sm">
+                      Total pieces: <strong>{calculateTotalPieces()}</strong>
+                    </span>
                   </div>
-
-                  {calculateTotalPieces() && (
-                    <div className="flex items-center gap-2 p-3 bg-primary/5 rounded-lg">
-                      <Calculator className="h-4 w-4 text-primary" />
-                      <span className="text-sm">
-                        Total pieces: <strong>{calculateTotalPieces()}</strong>
-                      </span>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+                )}
+              </CardContent>
+            </Card>
           </div>
 
           <div className="space-y-4">
@@ -265,16 +226,16 @@ export function AddProductDialog({ open, onOpenChange }: EnhancedAddProductDialo
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="quantity" className="text-base">
-                  Initial Stock * ({formData.unit_type === "box" ? "boxes" : "pieces"})
+                <Label htmlFor="boxes_in_stock" className="text-base">
+                  Initial Stock * (boxes)
                 </Label>
                 <Input
-                  id="quantity"
+                  id="boxes_in_stock"
                   type="number"
                   min="0"
                   placeholder="0"
-                  value={formData.quantity}
-                  onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                  value={formData.boxes_in_stock}
+                  onChange={(e) => setFormData({ ...formData, boxes_in_stock: e.target.value })}
                   className="h-12"
                   required
                 />
@@ -282,7 +243,7 @@ export function AddProductDialog({ open, onOpenChange }: EnhancedAddProductDialo
               
               <div className="space-y-2">
                 <Label htmlFor="min_stock_level" className="text-base">
-                  Minimum Stock Level * ({formData.unit_type === "box" ? "boxes" : "pieces"})
+                  Minimum Stock Level * (boxes)
                 </Label>
                 <Input
                   id="min_stock_level"
@@ -299,78 +260,90 @@ export function AddProductDialog({ open, onOpenChange }: EnhancedAddProductDialo
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="price" className="text-base">
-                  Buying Price * (RWF per {formData.unit_type})
+                <Label htmlFor="buy_price_per_box" className="text-base">
+                  Box Buying Price * (RWF)
                 </Label>
                 <Input
-                  id="price"
+                  id="buy_price_per_box"
                   type="number"
                   min="0"
                   step="0.01"
                   placeholder="0.00"
-                  value={formData.price}
-                  onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                  value={formData.buy_price_per_box}
+                  onChange={(e) => setFormData({ ...formData, buy_price_per_box: e.target.value })}
                   className="h-12"
                   required
                 />
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="selling_price" className="text-base">
-                  Piece Price * (RWF per piece)
+                <Label htmlFor="selling_price_per_box" className="text-base">
+                  Box Selling Price * (RWF)
                 </Label>
                 <Input
-                  id="selling_price"
+                  id="selling_price_per_box"
                   type="number"
                   min="0"
                   step="0.01"
                   placeholder="0.00"
-                  value={formData.selling_price}
-                  onChange={(e) => setFormData({ ...formData, selling_price: e.target.value })}
+                  value={formData.selling_price_per_box}
+                  onChange={(e) => setFormData({ ...formData, selling_price_per_box: e.target.value })}
                   className="h-12"
                   required
                 />
               </div>
             </div>
 
-            {formData.unit_type === "box" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="box_selling_price" className="text-base">
-                  Box Price * (RWF per box)
+                <Label htmlFor="buy_price_per_piece" className="text-base">
+                  Piece Buying Price * (RWF)
                 </Label>
                 <Input
-                  id="box_selling_price"
+                  id="buy_price_per_piece"
                   type="number"
                   min="0"
                   step="0.01"
                   placeholder="0.00"
-                  value={formData.box_selling_price}
-                  onChange={(e) => setFormData({ ...formData, box_selling_price: e.target.value })}
+                  value={formData.buy_price_per_piece}
+                  onChange={(e) => setFormData({ ...formData, buy_price_per_piece: e.target.value })}
                   className="h-12"
                   required
                 />
-                {formData.pieces_per_box && formData.box_selling_price && (
-                  <p className="text-xs text-muted-foreground">
-                    ≈ {(Number.parseFloat(formData.box_selling_price) / Number.parseInt(formData.pieces_per_box)).toFixed(2)} RWF per piece
-                  </p>
-                )}
               </div>
-            )}
+              
+              <div className="space-y-2">
+                <Label htmlFor="selling_price_per_piece" className="text-base">
+                  Piece Selling Price * (RWF)
+                </Label>
+                <Input
+                  id="selling_price_per_piece"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={formData.selling_price_per_piece}
+                  onChange={(e) => setFormData({ ...formData, selling_price_per_piece: e.target.value })}
+                  className="h-12"
+                  required
+                />
+              </div>
+            </div>
 
-            {formData.price && formData.selling_price && (
+            {formData.buy_price_per_piece && formData.selling_price_per_piece && (
               <Card className="bg-success/5 border-success/20">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-muted-foreground">Profit Margin</p>
+                      <p className="text-sm text-muted-foreground">Profit Margin (Piece)</p>
                       <p className="text-lg font-bold text-success">
                         {calculateProfitMargin().toFixed(1)}%
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm text-muted-foreground">Profit per unit</p>
+                      <p className="text-sm text-muted-foreground">Profit per piece</p>
                       <p className="text-lg font-bold text-success">
-                        {(Number.parseFloat(formData.selling_price) - Number.parseFloat(formData.price)).toLocaleString()} RWF
+                        {(Number.parseFloat(formData.selling_price_per_piece) - Number.parseFloat(formData.buy_price_per_piece)).toLocaleString()} RWF
                       </p>
                     </div>
                   </div>

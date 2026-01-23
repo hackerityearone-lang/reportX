@@ -6,7 +6,7 @@ export type TransactionType = "IN" | "OUT"
 
 export type PaymentType = "CASH" | "CREDIT"
 
-export type UnitType = "box" | "piece"
+export type UnitType = "box" | "piece" | "box_and_piece"
 
 export type SaleMode = "wholesale" | "retail"
 
@@ -20,19 +20,28 @@ export interface Product {
   id: string
   name: string
   brand: string
-  quantity: number
-  min_stock_level: number // Updated from minimum_stock_level
+  quantity: number // Legacy field, use boxes_in_stock for new schema
+  boxes_in_stock: number // NEW: Number of boxes in stock
+  min_stock_level: number
   image_url: string | null
-  price: number // Buying/cost price
-  selling_price: number // NEW: Selling price per piece
-  box_selling_price: number | null // NEW: Selling price per box (for box products)
-  unit_type: UnitType // NEW: box or piece
-  pieces_per_box: number | null // NEW: pieces per box (null for non-box items)
-  allow_retail_sales: boolean // NEW: whether retail sales are allowed
-  remaining_pieces: number // NEW: remaining pieces from opened boxes
+  // Legacy pricing fields (keep for compatibility)
+  price: number // Legacy buying price
+  buying_price: number // Legacy buying price (same as price)
+  selling_price: number // Legacy selling price
+  // NEW: Separate pricing fields
+  buy_price_per_box: number
+  selling_price_per_box: number
+  buy_price_per_piece: number
+  selling_price_per_piece: number
+  // Unit configuration
+  unit_type: UnitType // "box_and_piece" for all products
+  pieces_per_box: number | null
+  allow_retail_sales: boolean
+  open_box_pieces: number
   created_at: string
   updated_at: string
   user_id?: string
+  is_archived?: boolean
 }
 
 export interface Profile {

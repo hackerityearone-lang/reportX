@@ -39,15 +39,15 @@ export function ProductsGrid({ products }: ProductsGridProps) {
   )
 
   const calculateTotalPieces = (product: Product) => {
-    if (product.unit_type === "box" && product.pieces_per_box) {
-      return (product.quantity * product.pieces_per_box) + (product.remaining_pieces || 0)
+    if (product.pieces_per_box) {
+      return (product.boxes_in_stock * product.pieces_per_box) + (product.remaining_pieces || 0)
     }
-    return product.quantity
+    return product.boxes_in_stock
   }
 
   const calculateStockPercentage = (product: Product) => {
     const totalStock = calculateTotalPieces(product)
-    const minLevel = product.unit_type === "box" && product.pieces_per_box 
+    const minLevel = product.pieces_per_box 
       ? product.min_stock_level * product.pieces_per_box 
       : product.min_stock_level
     
@@ -55,8 +55,8 @@ export function ProductsGrid({ products }: ProductsGridProps) {
   }
 
   const getProfitMargin = (product: Product) => {
-    if (!product.price || !product.selling_price) return 0
-    return ((product.selling_price - product.price) / product.price) * 100
+    if (!product.buy_price_per_piece || !product.selling_price_per_piece) return 0
+    return ((product.selling_price_per_piece - product.buy_price_per_piece) / product.buy_price_per_piece) * 100
   }
 
   if (products.length === 0) {
@@ -113,7 +113,7 @@ export function ProductsGrid({ products }: ProductsGridProps) {
         {filteredProducts.map((product) => {
           const totalPieces = calculateTotalPieces(product)
           const stockPercentage = calculateStockPercentage(product)
-          const isLowStock = totalPieces <= (product.unit_type === "box" && product.pieces_per_box 
+          const isLowStock = totalPieces <= (product.pieces_per_box 
             ? product.min_stock_level * product.pieces_per_box 
             : product.min_stock_level)
           const isOutOfStock = totalPieces === 0
@@ -145,17 +145,10 @@ export function ProductsGrid({ products }: ProductsGridProps) {
                     variant="secondary" 
                     className="absolute top-2 left-2 text-xs"
                   >
-                    {product.unit_type === "box" ? (
-                      <div className="flex items-center gap-1">
-                        <Package className="h-3 w-3" />
-                        Box
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1">
-                        <Beer className="h-3 w-3" />
-                        Piece
-                      </div>
-                    )}
+                    <div className="flex items-center gap-1">
+                      <Package className="h-3 w-3" />
+                      Box & Piece
+                    </div>
                   </Badge>
 
                   {/* Status Badge */}
@@ -201,12 +194,12 @@ export function ProductsGrid({ products }: ProductsGridProps) {
 
                   {/* Stock Information */}
                   <div className="space-y-2">
-                    {product.unit_type === "box" && product.pieces_per_box ? (
+                    {product.pieces_per_box ? (
                       <div className="space-y-1">
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-muted-foreground">Boxes:</span>
                           <span className={`font-bold ${isOutOfStock ? "text-destructive" : isLowStock ? "text-warning" : "text-foreground"}`}>
-                            {product.quantity}
+                            {product.boxes_in_stock}
                           </span>
                         </div>
                         <div className="flex items-center justify-between text-sm">
@@ -230,11 +223,10 @@ export function ProductsGrid({ products }: ProductsGridProps) {
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-muted-foreground">Stock:</span>
                         <span className={`font-bold ${isOutOfStock ? "text-destructive" : isLowStock ? "text-warning" : "text-foreground"}`}>
-                          {product.quantity}
+                          {product.boxes_in_stock}
                         </span>
                       </div>
                     )}
-
                     <Progress
                       value={stockPercentage}
                       className={`h-1.5 ${isLowStock ? "[&>div]:bg-warning" : ""} ${isOutOfStock ? "[&>div]:bg-destructive" : ""}`}
@@ -243,18 +235,51 @@ export function ProductsGrid({ products }: ProductsGridProps) {
 
                   {/* Pricing Information */}
                   <div className="space-y-1">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Buying:</span>
-                      <span className="font-medium text-foreground">
-                        {(product.price ?? 0).toLocaleString()} RWF
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Selling:</span>
-                      <span className="font-medium text-success">
-                        {(product.selling_price ?? 0).toLocaleString()} RWF
-                      </span>
-                    </div>
+                    {product.pieces_per_box ? (
+                      // Box product - show both box and piece prices
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Buying (box):</span>
+                          <span className="font-medium text-foreground">
+                            {(product.buy_price_per_box ?? 0).toLocaleString()} RWF
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Selling (box):</span>
+                          <span className="font-medium text-success">
+                            {(product.selling_price_per_box ?? 0).toLocaleString()} RWF
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">Buying (piece):</span>
+                          <span className="font-medium text-foreground">
+                            {(product.buy_price_per_piece ?? 0).toLocaleString()} RWF
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">Selling (piece):</span>
+                          <span className="font-medium text-success">
+                            {(product.selling_price_per_piece ?? 0).toLocaleString()} RWF
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      // Piece product - show only piece prices
+                      <div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Buying:</span>
+                          <span className="font-medium text-foreground">
+                            {(product.buy_price_per_piece ?? 0).toLocaleString()} RWF
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Selling:</span>
+                          <span className="font-medium text-success">
+                            {(product.selling_price_per_piece ?? 0).toLocaleString()} RWF
+                          </span>
+                        </div>
+                      </div>
+                    )}
                     {profitMargin > 0 && (
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-muted-foreground flex items-center gap-1">
@@ -269,14 +294,12 @@ export function ProductsGrid({ products }: ProductsGridProps) {
                   </div>
 
                   {/* Retail Sales Badge */}
-                  {product.unit_type === "box" && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">Retail sales:</span>
-                      <Badge variant={product.allow_retail_sales ? "default" : "secondary"} className="text-xs">
-                        {product.allow_retail_sales ? "Enabled" : "Disabled"}
-                      </Badge>
-                    </div>
-                  )}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Retail sales:</span>
+                    <Badge variant={product.allow_retail_sales ? "default" : "secondary"} className="text-xs">
+                      {product.allow_retail_sales ? "Enabled" : "Disabled"}
+                    </Badge>
+                  </div>
                 </div>
               </CardContent>
             </Card>

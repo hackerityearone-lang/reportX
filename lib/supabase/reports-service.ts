@@ -86,8 +86,8 @@ export const reportsService = {
       else credit += (tx.total_amount || 0)
     })
 
-    // Build products query
-    let productsQuery = supabase.from("products").select("quantity, price").eq("is_archived", false)
+    // Build products query - update to use new schema fields
+    let productsQuery = supabase.from("products").select("boxes_in_stock, open_box_pieces, pieces_per_box, buy_price_per_box").eq("is_archived", false)
     
     // Filter logic for products
     if (managerId) {
@@ -97,7 +97,10 @@ export const reportsService = {
     }
     
     const { data: products } = await productsQuery
-    const stockVal = products?.reduce((sum, p) => sum + (p.quantity * p.price), 0) || 0
+    const stockVal = products?.reduce((sum, p) => {
+      const totalPieces = (p.boxes_in_stock * (p.pieces_per_box || 1)) + (p.open_box_pieces || 0)
+      return sum + (totalPieces * (p.buy_price_per_box || 0) / (p.pieces_per_box || 1))
+    }, 0) || 0
 
     const { data: report } = await supabase
       .from("daily_reports")
@@ -388,10 +391,10 @@ export const reportsService = {
     
     const { data: additions } = await additionsQuery
 
-    // 3. Get Low Stock Products
+    // 3. Get Low Stock Products - update to use new schema
     let productsQuery = supabase
       .from("products")
-      .select("id, name, brand, quantity, min_stock_level, price")
+      .select("id, name, brand, boxes_in_stock, open_box_pieces, pieces_per_box, min_stock_level, buy_price_per_box")
       .eq("is_archived", false)
     
     // Filter logic
@@ -408,10 +411,14 @@ export const reportsService = {
     }
 
     const lowStock = (allProducts || []).filter(p => {
-      const currentQty = Number(p.quantity || 0);
-      const minAllowed = p.min_stock_level != null ? Number(p.min_stock_level) : 10;
-      return currentQty <= minAllowed;
-    }).sort((a, b) => Number(a.quantity) - Number(b.quantity));
+      const totalPieces = (p.boxes_in_stock * (p.pieces_per_box || 1)) + (p.open_box_pieces || 0)
+      const minAllowed = p.min_stock_level != null ? Number(p.min_stock_level) : 10
+      return totalPieces <= minAllowed
+    }).sort((a, b) => {
+      const aTotal = (a.boxes_in_stock * (a.pieces_per_box || 1)) + (a.open_box_pieces || 0)
+      const bTotal = (b.boxes_in_stock * (b.pieces_per_box || 1)) + (b.open_box_pieces || 0)
+      return aTotal - bTotal
+    })
 
     return { 
       sales: salesWithCreditStatus, 
@@ -479,10 +486,10 @@ export const reportsService = {
     const { data: credits } = await creditsQuery
     const pending_credit = credits?.reduce((sum, c) => sum + (c.amount_owed - c.amount_paid), 0) || 0
 
-    // Get low stock count (exclude archived products)
+    // Get low stock count (exclude archived products) - update to use new schema
     let productsQuery = supabase
       .from("products")
-      .select("quantity, min_stock_level")
+      .select("boxes_in_stock, open_box_pieces, pieces_per_box, min_stock_level")
       .eq("is_archived", false)
     
     if (userRole !== 'BOSS') {
@@ -490,7 +497,10 @@ export const reportsService = {
     }
     
     const { data: products } = await productsQuery
-    const low_stock_products = products?.filter(p => p.quantity <= p.min_stock_level).length || 0
+    const low_stock_products = products?.filter(p => {
+      const totalPieces = (p.boxes_in_stock * (p.pieces_per_box || 1)) + (p.open_box_pieces || 0)
+      return totalPieces <= p.min_stock_level
+    }).length || 0
 
     return {
       today_cash,

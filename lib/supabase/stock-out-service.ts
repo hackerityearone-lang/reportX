@@ -58,8 +58,8 @@ export async function processStockOut(data: StockOutData) {
         customer_name: data.customer_name,
         customer_phone: data.customer_phone,
         total_amount: data.items.reduce((sum, item) => sum + (item.quantity * item.selling_price), 0),
-        payment_method: data.payment_method,
-        type: 'OUT',
+        payment_type: data.payment_method.toUpperCase(),
+        transaction_type: 'OUT',
         notes: data.notes,
         created_at: new Date().toISOString()
       })
@@ -151,7 +151,7 @@ export const stockOutService = {
           products(name, brand)
         )
       `)
-      .eq('type', 'OUT')
+      .eq('transaction_type', 'OUT')
       .order('created_at', { ascending: false })
     
     if (error) throw error
@@ -166,7 +166,7 @@ export const stockOutService = {
     const { data, error } = await supabase
       .from('stock_transactions')
       .select('*')
-      .eq('type', 'OUT')
+      .eq('transaction_type', 'OUT')
       .gte('created_at', startOfDay.toISOString())
       .lte('created_at', endOfDay.toISOString())
 
@@ -174,8 +174,8 @@ export const stockOutService = {
 
     const transactions = data || []
     return {
-      totalCash: transactions.filter(t => t.payment_method === 'cash').reduce((sum, t) => sum + (t.total_amount || 0), 0),
-      totalCredit: transactions.filter(t => t.payment_method === 'credit').reduce((sum, t) => sum + (t.total_amount || 0), 0),
+      totalCash: transactions.filter(t => t.payment_type === 'CASH').reduce((sum, t) => sum + (t.total_amount || 0), 0),
+      totalCredit: transactions.filter(t => t.payment_type === 'CREDIT').reduce((sum, t) => sum + (t.total_amount || 0), 0),
       totalProfit: 0,
       totalUnits: transactions.length,
       transactionCount: transactions.length
@@ -226,10 +226,10 @@ export const stockOutService = {
           customer_id: customerId,
           customer_name: data.customer?.name,
           phone: data.phone,
+          quantity: data.items.reduce((sum, item) => sum + item.quantity, 0),
           total_amount: totalAmount,
-          payment_method: data.payment_type.toLowerCase(),
           payment_type: data.payment_type,
-          type: 'OUT',
+          transaction_type: 'OUT',
           invoice_number: invoiceNumber,
           notes: data.notes,
           created_at: new Date().toISOString()
@@ -263,46 +263,22 @@ export const stockOutService = {
         
         if (productError) throw productError
         
-        // Update product stock using new logic
-        let newBoxesInStock = product.boxes_in_stock
-        let newOpenBoxPieces = product.open_box_pieces
+        // Update product stock using original schema
+        let newQuantity = product.quantity
         
         if (item.unit_type === 'boxes') {
-          // WHOLESALE: Only deduct boxes
-          newBoxesInStock -= item.quantity
-          // open_box_pieces unchanged
+          // WHOLESALE: Deduct full boxes worth of pieces
+          const piecesToDeduct = item.quantity * (product.pieces_per_box || 1)
+          newQuantity -= piecesToDeduct
         } else {
-          // RETAIL: Deduct pieces with box opening logic
-          let piecesToDeduct = item.quantity
-          
-          if (newOpenBoxPieces >= piecesToDeduct) {
-            // Case A: Enough open pieces
-            newOpenBoxPieces -= piecesToDeduct
-          } else {
-            // Case B: Not enough open pieces
-            const remaining = piecesToDeduct - newOpenBoxPieces
-            
-            // Use remaining open pieces
-            newOpenBoxPieces = 0
-            
-            // Open ONE new box
-            if (newBoxesInStock > 0) {
-              newBoxesInStock -= 1
-              newOpenBoxPieces = product.pieces_per_box
-              
-              // Deduct remaining pieces
-              newOpenBoxPieces -= remaining
-            } else {
-              throw new Error(`Cannot open box - no boxes in stock for ${product.name}`)
-            }
-          }
+          // RETAIL: Deduct individual pieces
+          newQuantity -= item.quantity
         }
         
         const { error: updateError } = await supabase
           .from('products')
           .update({
-            boxes_in_stock: newBoxesInStock,
-            open_box_pieces: newOpenBoxPieces
+            quantity: newQuantity
           })
           .eq('id', item.product_id)
         
@@ -316,7 +292,6 @@ export const stockOutService = {
           .insert({
             customer_id: customerId,
             customer_name: data.customer?.name,
-            customer_phone: data.phone,
             amount_owed: totalAmount,
             amount_paid: 0,
             status: 'PENDING',

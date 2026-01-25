@@ -207,7 +207,7 @@ function EditTransactionDialog({
       loadData()
       initializeItems()
     }
-  }, [isOpen])
+  }, [isOpen, transaction])
 
   const initializeItems = () => {
     if (transaction.stock_out_items?.length) {
@@ -229,6 +229,16 @@ function EditTransactionDialog({
         selling_price: Number(transaction.selling_price || 0),
         unit_sold: "piece",
         product: transaction.product
+      }])
+    } else {
+      // Fallback: create empty item
+      setItems([{
+        id: `new-${Date.now()}`,
+        product_id: '',
+        quantity: 1,
+        selling_price: 0,
+        unit_sold: 'piece',
+        product: null
       }])
     }
   }
@@ -296,10 +306,160 @@ function EditTransactionDialog({
 
     setLoading(true)
     try {
-      toast({ title: "Info", description: "Advanced transaction editing will be implemented in a future update." })
+      const supabase = createClient()
+      console.log('[EDIT TX] Starting save for transaction:', transaction.id)
+      
+      // Update transaction basic info
+      console.log('[EDIT TX] Step 1: Updating transaction basic info')
+      const updateData: any = {
+        customer_name: formData.customer_name || "Cash Customer",
+        payment_type: formData.payment_type,
+        notes: formData.notes
+      }
+      console.log('[EDIT TX] Update payload:', updateData)
+      
+      const { error: updateError } = await supabase
+        .from('stock_transactions')
+        .update(updateData)
+        .eq('id', transaction.id)
+      
+      if (updateError) {
+        console.error('[EDIT TX] Step 1 failed:', updateError)
+        throw updateError
+      }
+      console.log('[EDIT TX] Step 1 success')
+      
+      // Delete old items
+      console.log('[EDIT TX] Step 2: Deleting old items')
+      const { error: deleteItemsError } = await supabase
+        .from('stock_out_items')
+        .delete()
+        .eq('transaction_id', transaction.id)
+      
+      if (deleteItemsError) {
+        console.error('[EDIT TX] Step 2 failed:', deleteItemsError)
+        throw deleteItemsError
+      }
+      console.log('[EDIT TX] Step 2 success')
+      
+      // Insert new items
+      console.log('[EDIT TX] Step 3: Inserting new items, count:', items.length)
+      for (const item of items) {
+        const { error: insertError } = await supabase
+          .from('stock_out_items')
+          .insert({
+            transaction_id: transaction.id,
+            product_id: item.product_id,
+            quantity: item.quantity,
+            selling_price: item.selling_price,
+            buying_price: item.selling_price * 0.5
+          })
+        
+        if (insertError) {
+          console.error('[EDIT TX] Step 3 failed for item:', item, 'error:', insertError)
+          throw insertError
+        }
+      }
+      console.log('[EDIT TX] Step 3 success')
+      
+      // Update transaction total amount
+      console.log('[EDIT TX] Step 4: Calculating and updating total')
+      const newTotal = calculateTotal()
+      console.log('[EDIT TX] New total:', newTotal)
+      const { error: totalError } = await supabase
+        .from('stock_transactions')
+        .update({
+          total_amount: newTotal
+        })
+        .eq('id', transaction.id)
+      
+      if (totalError) {
+        console.error('[EDIT TX] Step 4 failed:', totalError)
+        throw totalError
+      }
+      console.log('[EDIT TX] Step 4 success')
+      
+      // Handle credit if payment type is CREDIT
+      console.log('[EDIT TX] Step 5: Handling credit, payment_type:', formData.payment_type)
+      if (formData.payment_type === 'CREDIT') {
+        // Check if credit already exists (without .single() which throws on no match)
+        console.log('[EDIT TX] Step 5a: Checking for existing credit')
+        const { data: existingCredits, error: creditCheckError } = await supabase
+          .from('credits')
+          .select('id')
+          .eq('transaction_id', transaction.id)
+        
+        if (creditCheckError) {
+          console.error('[EDIT TX] Step 5a failed - credit check error:', creditCheckError)
+        } else if (!existingCredits || existingCredits.length === 0) {
+          // Create new credit record
+          console.log('[EDIT TX] Step 5b: Creating new credit record')
+          const { error: creditError } = await supabase
+            .from('credits')
+            .insert({
+              customer_name: formData.customer_name || 'Cash Customer',
+              amount_owed: newTotal,
+              amount_paid: 0,
+              status: 'PENDING',
+              transaction_id: transaction.id,
+              is_active: true,
+              created_at: new Date().toISOString()
+            })
+          
+          if (creditError) {
+            console.error('[EDIT TX] Step 5b failed - credit insert error:', creditError)
+          } else {
+            console.log('[EDIT TX] Step 5b success')
+          }
+        } else {
+          // Update existing credit amount
+          console.log('[EDIT TX] Step 5c: Updating existing credit record')
+          const { error: updateCreditError } = await supabase
+            .from('credits')
+            .update({
+              amount_owed: newTotal
+            })
+            .eq('transaction_id', transaction.id)
+          
+          if (updateCreditError) {
+            console.error('[EDIT TX] Step 5c failed - credit update error:', updateCreditError)
+          } else {
+            console.log('[EDIT TX] Step 5c success')
+          }
+        }
+      } else {
+        // If changing from CREDIT to CASH, delete the credit record
+        console.log('[EDIT TX] Step 5d: Payment type is not CREDIT, checking if need to delete old credit')
+        if (transaction.payment_type === 'CREDIT') {
+          console.log('[EDIT TX] Step 5d: Deleting old credit record')
+          const { error: deleteCreditError } = await supabase
+            .from('credits')
+            .delete()
+            .eq('transaction_id', transaction.id)
+          
+          if (deleteCreditError) {
+            console.error('[EDIT TX] Step 5d failed - credit delete error:', deleteCreditError)
+          } else {
+            console.log('[EDIT TX] Step 5d success')
+          }
+        }
+      }
+      console.log('[EDIT TX] Step 5 completed')
+      
+      console.log('[EDIT TX] All steps completed successfully')
+      toast({ title: "Success", description: "Transaction updated successfully", variant: "default" })
+      onSuccess()
       onClose()
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" })
+      console.error('[EDIT TX] CATCH BLOCK - Save error:', error)
+      console.error('[EDIT TX] Error details:', {
+        message: error?.message,
+        code: error?.code,
+        status: error?.status,
+        toString: error?.toString(),
+        JSON: JSON.stringify(error, null, 2)
+      })
+      toast({ title: "Error", description: error?.message || "Failed to save transaction", variant: "destructive" })
     } finally {
       setLoading(false)
     }
@@ -332,7 +492,7 @@ function EditTransactionDialog({
                     const customer = customers.find(c => c.name === value)
                     setFormData({ ...formData, customer_name: value, customer_phone: customer?.phone || "" })
                   }
-                }}>
+                }} disabled={loading}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select customer" />
                   </SelectTrigger>
@@ -376,6 +536,7 @@ function EditTransactionDialog({
                       <Select 
                         value={item.product_id} 
                         onValueChange={(value) => updateItem(index, 'product_id', value)}
+                        disabled={loading}
                       >
                         <SelectTrigger className="h-9">
                           <SelectValue placeholder="Select product" />
@@ -398,6 +559,7 @@ function EditTransactionDialog({
                         value={item.quantity}
                         onChange={(e) => updateItem(index, 'quantity', Number(e.target.value))}
                         className="h-9"
+                        disabled={loading}
                       />
                     </div>
                     
@@ -410,6 +572,7 @@ function EditTransactionDialog({
                         value={item.selling_price}
                         onChange={(e) => updateItem(index, 'selling_price', Number(e.target.value))}
                         className="h-9"
+                        disabled={loading}
                       />
                     </div>
                     
@@ -445,7 +608,7 @@ function EditTransactionDialog({
               <Label>Payment Type</Label>
               <Select value={formData.payment_type} onValueChange={(value: "CASH" | "CREDIT") => 
                 setFormData({...formData, payment_type: value})
-              }>
+              } disabled={loading}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>

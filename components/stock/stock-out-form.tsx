@@ -178,33 +178,93 @@ export function StockOutForm({ products }: StockOutFormProps) {
 
       // Update stock - handle box products properly
       if (selectedProduct?.unit_type === "box" && selectedProduct.pieces_per_box && formData.unit_sold === "piece") {
-        // Selling pieces from box product
+        // Selling pieces from box product (RETAIL MODE)
         const currentRemaining = selectedProduct.open_box_pieces || 0
-        let piecesFromRemaining = Math.min(quantity, currentRemaining)
-        let piecesStillNeeded = quantity - piecesFromRemaining
-        let boxesToOpen = piecesStillNeeded > 0 ? Math.ceil(piecesStillNeeded / selectedProduct.pieces_per_box) : 0
-        let finalRemainingPieces = currentRemaining - piecesFromRemaining
+        const piecesPerBox = selectedProduct.pieces_per_box
         
-        if (boxesToOpen > 0) {
-          finalRemainingPieces += (boxesToOpen * selectedProduct.pieces_per_box) - piecesStillNeeded
+        console.log('[STOCK-OUT] Retail sale:', {
+          quantity: quantity,
+          currentRemaining: currentRemaining,
+          piecesPerBox: piecesPerBox,
+          boxesInStock: selectedProduct.boxes_in_stock
+        })
+        
+        let newBoxQuantity = selectedProduct.boxes_in_stock
+        let newOpenBoxPieces = currentRemaining
+        let piecesToDeduct = quantity
+        
+        // Step 1: First use open_box_pieces
+        if (piecesToDeduct <= newOpenBoxPieces) {
+          // All pieces can come from open box
+          newOpenBoxPieces -= piecesToDeduct
+          console.log('[STOCK-OUT] Using open box pieces only:', {
+            newOpenBoxPieces: newOpenBoxPieces,
+            newBoxQuantity: newBoxQuantity
+          })
+        } else {
+          // Need to open new boxes
+          piecesToDeduct -= newOpenBoxPieces  // Use all open pieces first
+          newOpenBoxPieces = 0  // Open box is now empty
+          
+          // Step 2: Open new boxes as needed
+          const boxesToOpen = Math.ceil(piecesToDeduct / piecesPerBox)
+          newBoxQuantity -= boxesToOpen
+          
+          // Step 3: Calculate remaining pieces in the last opened box
+          const totalPiecesFromNewBoxes = boxesToOpen * piecesPerBox
+          newOpenBoxPieces = totalPiecesFromNewBoxes - piecesToDeduct
+          
+          console.log('[STOCK-OUT] Opened new boxes:', {
+            boxesToOpen: boxesToOpen,
+            piecesToDeductFromNewBoxes: piecesToDeduct,
+            newOpenBoxPieces: newOpenBoxPieces,
+            newBoxQuantity: newBoxQuantity
+          })
         }
         
-        const newBoxQuantity = selectedProduct.boxes_in_stock - boxesToOpen
-        
-        await supabase
+        // Update product stock
+        const { error: stockError } = await supabase
           .from("products")
           .update({ 
-            boxes_in_stock: newBoxQuantity,
-            open_box_pieces: finalRemainingPieces
+            boxes_in_stock: Math.max(0, newBoxQuantity),
+            open_box_pieces: Math.max(0, newOpenBoxPieces)
           })
           .eq("id", formData.product_id)
+        
+        if (stockError) {
+          console.error('[STOCK-OUT] Stock update error:', stockError)
+          throw stockError
+        }
+        
+        console.log('[STOCK-OUT] Stock updated successfully')
+      } else if (selectedProduct?.unit_type === "box" && formData.unit_sold === "box") {
+        // Selling whole boxes (WHOLESALE MODE)
+        const newBoxQuantity = Math.max(0, selectedProduct.boxes_in_stock - quantity)
+        
+        const { error: stockError } = await supabase
+          .from("products")
+          .update({ 
+            boxes_in_stock: newBoxQuantity
+          })
+          .eq("id", formData.product_id)
+        
+        if (stockError) {
+          console.error('[STOCK-OUT] Box stock update error:', stockError)
+          throw stockError
+        }
       } else {
-        // Simple stock update for regular products or box sales
-        const newQuantity = (selectedProduct?.boxes_in_stock ?? 0) - (formData.unit_sold === "box" ? quantity : stockCalc.boxesDeducted)
-        await supabase
+        // Simple stock update for regular products
+        const newQuantity = Math.max(0, (selectedProduct?.boxes_in_stock ?? 0) - quantity)
+        
+        const { error: stockError } = await supabase
           .from("products")
           .update({ boxes_in_stock: newQuantity })
           .eq("id", formData.product_id)
+        
+        if (stockError) {
+          console.error('[STOCK-OUT] Simple stock update error:', stockError)
+          throw stockError
+        }
       }
 
       // Create credit record if needed

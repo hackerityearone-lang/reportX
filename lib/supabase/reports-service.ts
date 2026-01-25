@@ -337,11 +337,12 @@ export const reportsService = {
     const start = new Date(date); start.setHours(0,0,0,0)
     const end = new Date(date); end.setHours(23,59,59,999)
 
-    // 1. Fetch Sales with basic query
+    // 1. Fetch Sales with customer relationships (simplified to avoid query errors)
     let salesQuery = supabase
       .from("stock_transactions")
       .select(`
-        id, created_at, total_amount, payment_type, customer_name
+        *,
+        customers(id, name, phone, tin_number)
       `)
       .eq("transaction_type", "OUT")
       .gte("created_at", start.toISOString())
@@ -355,17 +356,50 @@ export const reportsService = {
       salesQuery = salesQuery.eq("user_id", user.id)
     }
     
-    const { data: sales } = await salesQuery
+    const { data: sales, error: salesError } = await salesQuery
+    
+    if (salesError) {
+      console.error('Sales query error:', salesError)
+      return { sales: [], additions: [], lowStock: [] }
+    }
+    
     console.log('Sales found:', sales?.length, sales)
-    console.log('Customer names:', sales?.map(s => s.customer_name))
+    console.log('Customer names:', sales?.map(s => s.customers?.name || s.customer_name))
 
-    // Use the actual customer name from the transaction
+    // 1b. Fetch stock_out_items for all transactions
+    const transactionIds = (sales || []).map(s => s.id)
+    let stockOutItemsData: any[] = []
+    
+    if (transactionIds.length > 0) {
+      const { data: items, error: itemsError } = await supabase
+        .from('stock_out_items')
+        .select(`
+          id, transaction_id, quantity, selling_price, product_id, products(id, name, brand)
+        `)
+        .in('transaction_id', transactionIds)
+      
+      if (itemsError) {
+        console.error('Stock out items error:', itemsError)
+      } else {
+        console.log('Stock out items data:', items)
+        stockOutItemsData = items || []
+      }
+    }
+
+    // Use customer relationship data with fallback to customer_name
     const salesWithCreditStatus = (sales || []).map((sale: any) => {
-      console.log('Processing sale:', sale.id, 'customer_name:', sale.customer_name)
+      const customerName = sale.customers?.name || sale.customer_name || 'Cash Customer'
+      console.log('Processing sale:', sale.id, 'customer_name:', customerName)
+      
+      // Attach stock_out_items to this transaction
+      const items = stockOutItemsData.filter(item => item.transaction_id === sale.id)
+      
       return {
         ...sale,
-        customer_name: sale.customer_name || 'Cash Customer',
-        is_credit_paid: false
+        customers: sale.customers || { name: customerName, id: null, phone: null, tin_number: null },
+        customer_name: customerName,
+        stock_out_items: items,
+        is_credit_paid: sale.is_credit_paid || false
       }
     });
 

@@ -22,6 +22,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
 
 interface Manager {
   id: string
@@ -39,6 +46,8 @@ export function AdvancedReportsPanel() {
   const [detailedLog, setDetailedLog] = useState<any>(null)
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [selectedTransaction, setSelectedTransaction] = useState<any>(null)
+  const [transactionDialogOpen, setTransactionDialogOpen] = useState(false)
   
   // Manager selector states
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null)
@@ -163,15 +172,28 @@ export function AdvancedReportsPanel() {
       csvContent += `Units Sold,${dailyReport.total_units_sold}\n`
       csvContent += `Low Stock Items,${detailedLog?.lowStock?.length || 0}\n\n`
       
-      // Sales Log
-      csvContent += "SALES LOG\n"
-      csvContent += "Time,Customer,Items,Payment Type,Total Amount\n"
+      // Sales Log - Detailed
+      csvContent += "SALES LOG - DETAILED\n"
+      csvContent += "Time,Customer,Product,Quantity,Unit Price,Subtotal,Payment Type,Invoice\n"
       detailedLog?.sales?.forEach((s: any) => {
         const time = new Date(s.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
-        const customer = s.customers?.name || "Cash Customer"
-        const items = s.stock_out_items?.map((item: any) => `${item.products?.name} x${item.quantity}`).join('; ') || ""
+        const customer = s.customers?.name || s.customer_name || "Cash Customer"
+        const invoiceNum = s.invoice_number || s.id?.slice(0, 8) || "N/A"
         const paymentType = s.payment_type === 'CASH' ? 'CASH' : (s.is_credit_paid ? 'PAID CREDIT' : 'CREDIT')
-        csvContent += `${time},"${customer}","${items}",${paymentType},${s.total_amount}\n`
+        
+        if (s.stock_out_items && s.stock_out_items.length > 0) {
+          // Add one row per item - show customer and payment on EVERY row for clarity
+          s.stock_out_items.forEach((item: any) => {
+            const productName = item.products?.name || item.product?.name || "Unknown Product"
+            const quantity = item.quantity || 0
+            const unitPrice = item.selling_price || 0
+            const subtotal = quantity * unitPrice
+            
+            csvContent += `${time},"${customer}","${productName}",${quantity},${unitPrice},${subtotal},"${paymentType}",${invoiceNum}\n`
+          })
+        } else {
+          csvContent += `${time},"${customer}","No items",0,0,0,"${paymentType}",${invoiceNum}\n`
+        }
       })
       
       // Low Stock
@@ -421,7 +443,11 @@ export function AdvancedReportsPanel() {
                         detailedLog.sales.map((s: any, idx: number) => (
                           <tr
                             key={idx}
-                            className="transition-colors hover:bg-slate-50 cursor-pointer print:cursor-default"
+                            className="transition-colors hover:bg-slate-100 cursor-pointer print:cursor-default"
+                            onClick={() => {
+                              setSelectedTransaction(s)
+                              setTransactionDialogOpen(true)
+                            }}
                           >
                             <td className="py-4 px-2 font-mono text-xs text-slate-500">
                                {new Date(s.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
@@ -429,7 +455,8 @@ export function AdvancedReportsPanel() {
                             <td className="py-4 px-2 font-bold">
                               {s.customers?.id ? (
                                 <button
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    e.stopPropagation()
                                     setSelectedCustomerId(s.customers.id)
                                     setDialogOpen(true)
                                   }}
@@ -445,7 +472,7 @@ export function AdvancedReportsPanel() {
                               <div className="flex flex-col text-sm space-y-1">
                                 {s.stock_out_items?.map((item: any, i: number) => (
                                   <div key={i} className="py-1">
-                                    <span className="font-medium">{item.products?.name}</span> 
+                                    <span className="font-medium">{item.product?.name || item.products?.name}</span> 
                                     <span className="text-slate-500">x{item.quantity}</span>
                                   </div>
                                 ))}
@@ -533,6 +560,103 @@ export function AdvancedReportsPanel() {
             </div>
           </div>
         </div>
+          
+          {/* Transaction Details Dialog */}
+          <Dialog open={transactionDialogOpen} onOpenChange={setTransactionDialogOpen}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Receipt className="h-5 w-5" />
+                  Transaction Details
+                </DialogTitle>
+                <DialogDescription>
+                  Complete information about this transaction
+                </DialogDescription>
+              </DialogHeader>
+              
+              {selectedTransaction && (
+                <div className="space-y-6">
+                  {/* Header Info */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-muted-foreground font-semibold uppercase">Date & Time</p>
+                      <p className="text-lg font-bold">
+                        {new Date(selectedTransaction.created_at).toLocaleString()}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground font-semibold uppercase">Invoice #</p>
+                      <p className="text-lg font-bold">{selectedTransaction.invoice_number || selectedTransaction.id.slice(0, 8)}</p>
+                    </div>
+                  </div>
+
+                  {/* Customer Info */}
+                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                    <p className="text-xs text-muted-foreground font-semibold uppercase mb-2">Customer</p>
+                    <p className="text-lg font-bold">{selectedTransaction.customers?.name || "Cash Customer"}</p>
+                    {selectedTransaction.customers?.phone && (
+                      <p className="text-sm text-muted-foreground">{selectedTransaction.customers.phone}</p>
+                    )}
+                    {selectedTransaction.customers?.tin_number && (
+                      <p className="text-sm text-muted-foreground">TIN: {selectedTransaction.customers.tin_number}</p>
+                    )}
+                  </div>
+
+                  {/* Items */}
+                  <div>
+                    <p className="text-xs text-muted-foreground font-semibold uppercase mb-3">Items</p>
+                    <div className="space-y-2">
+                      {selectedTransaction.stock_out_items?.map((item: any, i: number) => (
+                        <div key={i} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-200">
+                          <div>
+                            <p className="font-medium">{item.product?.name || item.products?.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {item.product?.brand || item.products?.brand}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm">Qty: <span className="font-bold">{item.quantity}</span></p>
+                            <p className="text-sm">Price: <span className="font-bold">{formatAmount(item.selling_price)} RWF</span></p>
+                            <p className="text-sm font-bold text-primary">
+                              {formatAmount((item.quantity || 0) * (item.selling_price || 0))} RWF
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Payment & Totals */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                      <p className="text-xs text-muted-foreground font-semibold uppercase">Payment Type</p>
+                      <div className="mt-2">
+                        {selectedTransaction.payment_type === 'CASH' ? (
+                          <Badge className="bg-emerald-500 text-white font-bold">CASH</Badge>
+                        ) : selectedTransaction.is_credit_paid ? (
+                          <Badge className="bg-green-600 text-white font-bold">PAID CREDIT</Badge>
+                        ) : (
+                          <Badge className="bg-amber-500 text-white font-bold">CREDIT</Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="bg-primary/5 p-4 rounded-lg border border-primary/20">
+                      <p className="text-xs text-muted-foreground font-semibold uppercase">Total Amount</p>
+                      <p className="text-2xl font-black text-primary mt-2">{formatAmount(selectedTransaction.total_amount)} RWF</p>
+                    </div>
+                  </div>
+
+                  {/* Notes */}
+                  {selectedTransaction.notes && (
+                    <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
+                      <p className="text-xs text-muted-foreground font-semibold uppercase mb-2">Notes</p>
+                      <p className="text-sm">{selectedTransaction.notes}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
           
           <CustomerDetailsDialog customerId={selectedCustomerId} open={dialogOpen} onOpenChange={(o) => { if (!o) setSelectedCustomerId(null); setDialogOpen(o) }} />
         </>

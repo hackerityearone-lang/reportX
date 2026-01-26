@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -28,6 +28,8 @@ import {
   Settings,
   Users,
 } from "lucide-react"
+import { SearchDialog } from "./search-dialog"
+import { Notifications } from "./notifications"
 
 interface DashboardHeaderProps {
   userName: string
@@ -39,6 +41,20 @@ export function DashboardHeader({ userName, userRole }: DashboardHeaderProps) {
   const pathname = usePathname()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
+
+  // Keyboard shortcut for search (Ctrl+K or Cmd+K)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        setSearchOpen(true)
+      }
+    }
+    
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -212,29 +228,23 @@ export function DashboardHeader({ userName, userRole }: DashboardHeaderProps) {
 
         {/* Right side actions */}
         <div className="flex items-center gap-2">
-          {/* Search Button - Desktop only */}
+          {/* Search Button */}
           <Button 
             variant="ghost" 
             size="icon" 
-            className="hidden md:flex hover:bg-emerald-50 dark:hover:bg-slate-800 transition-colors"
+            className="hover:bg-emerald-50 dark:hover:bg-slate-800 transition-colors relative group"
+            onClick={() => setSearchOpen(true)}
           >
             <Search className="h-5 w-5 text-slate-600 dark:text-slate-400" />
-            <span className="sr-only">Search</span>
+            <span className="sr-only">Search (Ctrl+K)</span>
+            {/* Keyboard shortcut hint */}
+            <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+              Ctrl+K
+            </div>
           </Button>
 
           {/* Notifications */}
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="relative hover:bg-emerald-50 dark:hover:bg-slate-800 transition-colors"
-          >
-            <Bell className="h-5 w-5 text-slate-600 dark:text-slate-400" />
-            <span className="absolute top-1.5 right-1.5 flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-            <span className="sr-only">Notifications</span>
-          </Button>
+          <Notifications />
 
           {/* User Menu */}
           <DropdownMenu>
@@ -287,6 +297,9 @@ export function DashboardHeader({ userName, userRole }: DashboardHeaderProps) {
           </DropdownMenu>
         </div>
       </div>
+      
+      {/* Search Dialog */}
+      <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
     </header>
   )
 }

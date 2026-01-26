@@ -78,28 +78,28 @@ export function AdvancedStockOutForm({ onTransactionSuccess }: AdvancedStockOutF
 
   // Load products on mount
   useEffect(() => {
-    const loadProducts = async () => {
-      setIsLoadingProducts(true)
-      try {
-        const supabase = createClient()
-        const { data, error } = await supabase
-          .from("products")
-          .select("*")
-          .eq("is_archived", false)
-          .order("name")
-        
-        if (error) throw error
-        setProducts(data || [])
-      } catch (err) {
-        console.error("Failed to load products:", err)
-        setError("Failed to load products")
-      } finally {
-        setIsLoadingProducts(false)
-      }
-    }
-
     loadProducts()
   }, [])
+
+  const loadProducts = async () => {
+    setIsLoadingProducts(true)
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .eq("is_archived", false)
+        .order("name")
+      
+      if (error) throw error
+      setProducts(data || [])
+    } catch (err) {
+      console.error("Failed to load products:", err)
+      setError("Failed to load products")
+    } finally {
+      setIsLoadingProducts(false)
+    }
+  }
 
   // Close product search dropdown when clicking outside
   useEffect(() => {
@@ -298,10 +298,9 @@ export function AdvancedStockOutForm({ onTransactionSuccess }: AdvancedStockOutF
         return `${product.name}: need ${item.quantity} boxes, have ${product.boxes_in_stock} boxes available`
       }
     } else {
-      // RETAIL: Check available pieces (open + boxes)
-      const availablePieces = product.open_box_pieces + (product.boxes_in_stock * product.pieces_per_box)
-      if (item.quantity > availablePieces) {
-        return `${product.name}: need ${item.quantity} pieces, have ${availablePieces} pieces available`
+      // RETAIL: Check total available pieces (quantity is source of truth)
+      if (item.quantity > product.quantity) {
+        return `${product.name}: need ${item.quantity} pieces, have ${product.quantity} pieces available`
       }
     }
     
@@ -394,6 +393,9 @@ export function AdvancedStockOutForm({ onTransactionSuccess }: AdvancedStockOutF
       setInvoiceNumber(transaction.invoice_number)
       setSuccess(true)
 
+      // Refresh products to show updated stock levels
+      await loadProducts()
+
       // Reset form
       setItems([
         { id: "1", product_id: "", quantity: 0, unit_sold: "piece", selling_price: 0, buying_price: 0, subtotal: 0, profit: 0 },
@@ -409,11 +411,8 @@ export function AdvancedStockOutForm({ onTransactionSuccess }: AdvancedStockOutF
       setShowProductSearches({})
       setSelectedProductNames({})
 
-      // Refresh page after 2 seconds
-      setTimeout(() => {
-        router.refresh()
-        onTransactionSuccess?.()
-      }, 2000)
+      // Call success callback to refresh parent components
+      onTransactionSuccess?.()
     } catch (err: any) {
       setError(err.message || "Failed to create stock out")
     } finally {
@@ -464,7 +463,7 @@ export function AdvancedStockOutForm({ onTransactionSuccess }: AdvancedStockOutF
                       checked={saleMode === "wholesale"}
                       onChange={(e) => {
                         setSaleMode("wholesale")
-                        // Update all items to box mode
+                        // Update all items to box mode with correct prices
                         setItems(items.map(item => {
                           const product = products.find(p => p.id === item.product_id)
                           if (!product) return item
@@ -472,7 +471,8 @@ export function AdvancedStockOutForm({ onTransactionSuccess }: AdvancedStockOutF
                           return {
                             ...item,
                             unit_sold: "box",
-                            selling_price: product.selling_price_per_box || 0
+                            selling_price: product.selling_price_per_box || 0,
+                            buying_price: product.buy_price_per_box || 0
                           }
                         }))
                       }}
@@ -494,7 +494,7 @@ export function AdvancedStockOutForm({ onTransactionSuccess }: AdvancedStockOutF
                       checked={saleMode === "retail"}
                       onChange={(e) => {
                         setSaleMode("retail")
-                        // Update all items to piece mode
+                        // Update all items to piece mode with correct prices
                         setItems(items.map(item => {
                           const product = products.find(p => p.id === item.product_id)
                           if (!product) return item
@@ -502,7 +502,8 @@ export function AdvancedStockOutForm({ onTransactionSuccess }: AdvancedStockOutF
                           return {
                             ...item,
                             unit_sold: "piece",
-                            selling_price: product.selling_price_per_piece || 0
+                            selling_price: product.selling_price_per_piece || 0,
+                            buying_price: product.buy_price_per_piece || 0
                           }
                         }))
                       }}
@@ -622,9 +623,9 @@ export function AdvancedStockOutForm({ onTransactionSuccess }: AdvancedStockOutF
                                             variant={p.quantity > 10 ? "secondary" : p.quantity > 0 ? "outline" : "destructive"}
                                             className="text-xs"
                                           >
-                                            {p.unit_type === "box" 
-                                              ? `${p.boxes_in_stock} boxes (${(p.boxes_in_stock * (p.pieces_per_box || 1)) + (p.open_box_pieces || 0)} pieces total)`
-                                              : `Stock: ${p.boxes_in_stock}`
+                                            {p.unit_type === "box" || p.unit_type === "box_and_piece"
+                                              ? `${p.boxes_in_stock} boxes / ${p.quantity} pieces`
+                                              : `Stock: ${p.quantity} pieces`
                                             }
                                           </Badge>
                                           <span className="text-xs text-muted-foreground">
@@ -660,7 +661,7 @@ export function AdvancedStockOutForm({ onTransactionSuccess }: AdvancedStockOutF
                               min="1"
                               max={saleMode === "wholesale" 
                                 ? product?.boxes_in_stock || 999
-                                : (product?.open_box_pieces || 0) + ((product?.boxes_in_stock || 0) * (product?.pieces_per_box || 1))}
+                                : product?.quantity || 999}
                               value={item.quantity || ""}
                               onChange={(e) =>
                                 updateItem(item.id, { quantity: Number.parseInt(e.target.value) || 0 })
@@ -670,9 +671,9 @@ export function AdvancedStockOutForm({ onTransactionSuccess }: AdvancedStockOutF
                             />
                             {saleMode === "retail" && product && (
                               <p className="text-xs text-muted-foreground mt-1">
-                                Available: {product.open_box_pieces} open + {product.boxes_in_stock} boxes
-                                {item.quantity > product.open_box_pieces && (
-                                  <span className="text-warning ml-1">⚠ Will open 1 box</span>
+                                Available: {product.remaining_pieces} open + {product.boxes_in_stock} boxes
+                                {item.quantity > product.remaining_pieces && (
+                                  <span className="text-warning ml-1">⚠ Will open boxes</span>
                                 )}
                               </p>
                             )}

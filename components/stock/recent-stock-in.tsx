@@ -3,7 +3,7 @@ import { ArrowDownToLine } from "lucide-react"
 import type { StockTransaction, Product } from "@/lib/types"
 
 interface RecentStockInProps {
-  transactions: (StockTransaction & { product: Product | null })[]
+  transactions: StockTransaction[]
 }
 
 export function RecentStockIn({ transactions }: RecentStockInProps) {
@@ -39,8 +39,8 @@ export function RecentStockIn({ transactions }: RecentStockInProps) {
           })
 
           // Calculate total cost for stock-in transactions
-          const totalCost = transaction.buying_price && transaction.quantity 
-            ? transaction.buying_price * transaction.quantity 
+          const totalCost = transaction.buying_price && transaction.quantity
+            ? transaction.buying_price * transaction.quantity
             : null
 
           return (

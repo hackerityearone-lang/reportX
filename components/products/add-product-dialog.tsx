@@ -71,7 +71,7 @@ export function AddProductDialog({ open, onOpenChange }: EnhancedAddProductDialo
     const productData = {
       name: formData.name.trim(),
       brand: formData.brand.trim(),
-      boxes_in_stock: Number.parseInt(formData.boxes_in_stock) || 0,
+      quantity: (Number.parseInt(formData.boxes_in_stock) || 0) * (Number.parseInt(formData.pieces_per_box) || 1),
       min_stock_level: Number.parseInt(formData.min_stock_level) || 10,
       buy_price_per_box: Number.parseFloat(formData.buy_price_per_box) || 0,
       selling_price_per_box: Number.parseFloat(formData.selling_price_per_box) || 0,
@@ -80,7 +80,6 @@ export function AddProductDialog({ open, onOpenChange }: EnhancedAddProductDialo
       unit_type: "box_and_piece",
       pieces_per_box: Number.parseInt(formData.pieces_per_box) || null,
       allow_retail_sales: formData.allow_retail_sales,
-      remaining_pieces: 0,
       image_url: formData.image_url.trim() || null,
     }
 

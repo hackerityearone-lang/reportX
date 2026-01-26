@@ -961,11 +961,12 @@ export function RecentStockOut({ transactions, onTransactionUpdated }: RecentSto
   const [paymentFilter, setPaymentFilter] = useState<"ALL" | "CASH" | "CREDIT">("ALL")
   const [dateFilter, setDateFilter] = useState<"ALL" | "TODAY" | "WEEK" | "MONTH">("ALL")
   const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 3
+  const itemsPerPage = 10
 
-  // Filter transactions
+  // Filter and sort transactions
   const filteredTransactions = useMemo(() => {
-    return transactions.filter(t => {
+    return transactions
+      .filter(t => {
       const matchesSearch = searchQuery === "" || 
         t.customers?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         t.invoice_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -991,6 +992,7 @@ export function RecentStockOut({ transactions, onTransactionUpdated }: RecentSto
 
       return matchesSearch && matchesPayment && matchesDate
     })
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
   }, [transactions, searchQuery, paymentFilter, dateFilter])
 
   const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage)

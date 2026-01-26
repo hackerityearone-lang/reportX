@@ -37,7 +37,8 @@ export interface Product {
   unit_type: UnitType // "box_and_piece" for all products
   pieces_per_box: number | null
   allow_retail_sales: boolean
-  open_box_pieces: number
+  open_box_pieces: number // Legacy, use remaining_pieces
+  remaining_pieces?: number // NEW: Pieces in open box
   created_at: string
   updated_at: string
   user_id?: string

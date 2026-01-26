@@ -16,9 +16,10 @@ import type { Product } from "@/lib/types"
 
 interface StockInFormProps {
   products: Product[]
+  onTransactionSuccess?: () => void
 }
 
-export function StockInForm({ products }: StockInFormProps) {
+export function StockInForm({ products, onTransactionSuccess }: StockInFormProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
@@ -54,8 +55,8 @@ export function StockInForm({ products }: StockInFormProps) {
   const filteredProducts = products.filter(p => {
     if (!productSearchQuery) return true
     const query = productSearchQuery.toLowerCase()
-    return p.name.toLowerCase().includes(query) || 
-           p.brand?.toLowerCase().includes(query)
+    return p.name.toLowerCase().includes(query) ||
+      p.brand?.toLowerCase().includes(query)
   })
 
   // Get display value for search input
@@ -100,9 +101,10 @@ export function StockInForm({ products }: StockInFormProps) {
 
     const { error: insertError } = await supabase.from("stock_transactions").insert({
       product_id: formData.product_id,
-      type: "STOCK_IN",
+      type: "IN",
       quantity: quantity,
-      amount_owed: quantity * (selectedProduct?.price ?? 0),
+      unit_sold: "box",
+      amount_owed: quantity * (selectedProduct?.buy_price_per_box || selectedProduct?.buying_price || 0),
       notes: formData.notes || null,
       user_id: user.id,
     })
@@ -113,8 +115,22 @@ export function StockInForm({ products }: StockInFormProps) {
       return
     }
 
-    const newQuantity = (selectedProduct?.quantity ?? 0) + quantity
-    await supabase.from("products").update({ quantity: newQuantity }).eq("id", formData.product_id)
+    // Calculate new total pieces (boxes * pieces_per_box + existing remaining_pieces)
+    const piecesPerBox = selectedProduct?.pieces_per_box || 1
+    const currentRemainingPieces = selectedProduct?.remaining_pieces || 0
+    const newTotalPieces = (selectedProduct?.quantity || 0) + (quantity * piecesPerBox)
+    
+    // Update quantity (trigger will calculate boxes_in_stock and remaining_pieces)
+    const { error: updateError } = await supabase
+      .from("products")
+      .update({ quantity: newTotalPieces })
+      .eq("id", formData.product_id)
+
+    if (updateError) {
+      setError(updateError.message)
+      setIsLoading(false)
+      return
+    }
 
     setSuccess(true)
     setFormData({
@@ -124,9 +140,11 @@ export function StockInForm({ products }: StockInFormProps) {
     })
     setSelectedProductName("")
     setProductSearchQuery("")
-    router.refresh()
+    
+    // Call success callback to refresh parent components
+    onTransactionSuccess?.()
+    
     setIsLoading(false)
-
     setTimeout(() => setSuccess(false), 3000)
   }
 
@@ -205,14 +223,25 @@ export function StockInForm({ products }: StockInFormProps) {
                           )}
                         </div>
                         <div className="flex flex-col items-end gap-1">
-                          <Badge 
-                            variant={product.quantity > 10 ? "secondary" : product.quantity > 0 ? "outline" : "destructive"}
-                            className="text-xs"
-                          >
-                            Stock: {product.quantity}
-                          </Badge>
+                          {/* Stock Badge */}
+                          {product.unit_type === 'box' || product.unit_type === 'box_and_piece' ? (
+                            <div className="flex flex-col items-end gap-1">
+                              <Badge variant="secondary" className="text-xs">
+                                {product.boxes_in_stock} boxes / {product.quantity} pieces
+                              </Badge>
+                            </div>
+                          ) : (
+                            <Badge
+                              variant={product.quantity > 10 ? "secondary" : product.quantity > 0 ? "outline" : "destructive"}
+                              className="text-xs"
+                            >
+                              Stock: {product.quantity} pieces
+                            </Badge>
+                          )}
+
+                          {/* Price Display */}
                           <span className="text-xs text-muted-foreground">
-                            {product.price.toLocaleString()} RWF
+                            {(product.price || product.buying_price || 0).toLocaleString()} RWF
                           </span>
                         </div>
                       </div>
@@ -229,8 +258,8 @@ export function StockInForm({ products }: StockInFormProps) {
             </div>
           </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="quantity">Quantity *</Label>
+            <div className="grid gap-2">
+            <Label htmlFor="quantity">Quantity (Boxes) *</Label>
             <Input
               id="quantity"
               type="number"
@@ -247,12 +276,12 @@ export function StockInForm({ products }: StockInFormProps) {
             <div className="bg-secondary/50 rounded-lg p-4">
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Price:</span>
-                <span className="font-medium">{selectedProduct.price.toLocaleString()} RWF / unit</span>
+                <span className="font-medium">{(selectedProduct.buy_price_per_box || selectedProduct.buying_price || 0).toLocaleString()} RWF / box</span>
               </div>
               <div className="flex justify-between items-center mt-2">
                 <span className="text-muted-foreground">Total:</span>
                 <span className="text-xl font-bold text-foreground">
-                  {(Number.parseInt(formData.quantity || "0") * selectedProduct.price).toLocaleString()} RWF
+                  {(Number.parseInt(formData.quantity || "0") * (selectedProduct.buy_price_per_box || selectedProduct.buying_price || 0)).toLocaleString()} RWF
                 </span>
               </div>
             </div>

@@ -516,34 +516,87 @@ export function AdvancedReportsPanel() {
               </section>
 
               {/* SECTION: STOCK UPDATES */}
-              <div className="grid grid-cols-2 gap-12 pt-6 border-t">
-                {/* STOCK IN */}
-                <div className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-6 border-t">
+                {/* STOCK IN TABLE */}
+                <section className="space-y-4">
                   <h3 className="text-lg font-bold flex items-center gap-2 text-emerald-600">
                     <ArrowDownToLine className="h-5 w-5" /> Inventory Inbound
                   </h3>
-                  {detailedLog?.additions?.map((a: any, idx: number) => (
-                    <div key={idx} className="flex justify-between p-3 rounded-xl bg-emerald-50 border border-emerald-100 text-sm">
-                      <span className="font-bold">{a.products?.name}</span>
-                      <span className="font-black text-emerald-700">+{a.quantity}</span>
+                  {detailedLog?.additions && detailedLog.additions.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-emerald-700 font-bold uppercase text-xs text-left border-b-2 border-emerald-200">
+                            <th className="pb-3 px-2">Product</th>
+                            <th className="pb-3 px-2">Brand</th>
+                            <th className="pb-3 px-2 text-right">Quantity Added</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-emerald-100">
+                          {detailedLog.additions.map((a: any, idx: number) => (
+                            <tr key={idx} className="hover:bg-emerald-50 transition-colors">
+                              <td className="py-3 px-2 font-bold">{a.products?.name || 'Unknown Product'}</td>
+                              <td className="py-3 px-2 text-slate-600">{a.products?.brand || 'N/A'}</td>
+                              <td className="py-3 px-2 text-right font-black text-emerald-700">+{a.quantity}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                  ))}
-                  {detailedLog?.additions?.length === 0 && <p className="text-slate-400 text-xs italic text-center">No restocks today</p>}
-                </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <ArrowDownToLine className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+                      <p className="text-slate-400 text-sm font-medium">No restocks today</p>
+                    </div>
+                  )}
+                </section>
 
-                {/* LOW STOCK */}
-                <div className="space-y-4">
+                {/* LOW STOCK TABLE */}
+                <section className="space-y-4">
                   <h3 className="text-lg font-bold flex items-center gap-2 text-rose-600">
                     <AlertTriangle className="h-5 w-5" /> Restock Urgently
                   </h3>
-                  {detailedLog?.lowStock?.map((p: any, idx: number) => (
-                    <div key={idx} className="flex justify-between p-3 rounded-xl bg-rose-50 border border-rose-100 text-sm">
-                      <span className="font-bold">{p.name}</span>
-                      <Badge variant="destructive" className="font-black">{p.quantity} LEFT</Badge>
+                  {detailedLog?.lowStock && detailedLog.lowStock.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-rose-700 font-bold uppercase text-xs text-left border-b-2 border-rose-200">
+                            <th className="pb-3 px-2">Product</th>
+                            <th className="pb-3 px-2">Brand</th>
+                            <th className="pb-3 px-2 text-right">Stock Left</th>
+                            <th className="pb-3 px-2 text-center">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-rose-100">
+                          {detailedLog.lowStock.map((p: any, idx: number) => (
+                            <tr key={idx} className="hover:bg-rose-50 transition-colors">
+                              <td className="py-3 px-2 font-bold">{p.name}</td>
+                              <td className="py-3 px-2 text-slate-600">{p.brand || 'N/A'}</td>
+                              <td className="py-3 px-2 text-right font-black text-rose-700">{p.quantity}</td>
+                              <td className="py-3 px-2 text-center">
+                                <Badge 
+                                  variant={p.quantity === 0 ? "destructive" : "secondary"} 
+                                  className={`font-black text-xs ${
+                                    p.quantity === 0 
+                                      ? "bg-red-600 text-white" 
+                                      : "bg-amber-500 text-white"
+                                  }`}
+                                >
+                                  {p.quantity === 0 ? "OUT" : "LOW"}
+                                </Badge>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                  ))}
-                  {detailedLog?.lowStock?.length === 0 && <p className="text-slate-400 text-xs italic text-center">All stock levels healthy</p>}
-                </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <CheckCircle2 className="h-12 w-12 text-green-400 mx-auto mb-3" />
+                      <p className="text-slate-400 text-sm font-medium">All stock levels healthy</p>
+                    </div>
+                  )}
+                </section>
               </div>
 
               {/* SIGNATURES */}

@@ -28,6 +28,7 @@ import type { Product, UnitType, SaleMode } from "@/lib/types"
 
 interface StockOutFormProps {
   products: Product[]
+  onTransactionSuccess?: () => void
 }
 
 interface StockCalculation {
@@ -39,7 +40,7 @@ interface StockCalculation {
   errorMessage?: string
 }
 
-export function StockOutForm({ products }: StockOutFormProps) {
+export function StockOutForm({ products, onTransactionSuccess }: StockOutFormProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
@@ -176,93 +177,21 @@ export function StockOutForm({ products }: StockOutFormProps) {
         return
       }
 
-      // Update stock - handle box products properly
-      if (selectedProduct?.unit_type === "box" && selectedProduct.pieces_per_box && formData.unit_sold === "piece") {
-        // Selling pieces from box product (RETAIL MODE)
-        const currentRemaining = selectedProduct.open_box_pieces || 0
-        const piecesPerBox = selectedProduct.pieces_per_box
+      // Update stock - use quantity as source of truth
+      if (selectedProduct) {
+        const piecesToDeduct = formData.unit_sold === "box" 
+          ? quantity * (selectedProduct.pieces_per_box || 1)
+          : quantity
         
-        console.log('[STOCK-OUT] Retail sale:', {
-          quantity: quantity,
-          currentRemaining: currentRemaining,
-          piecesPerBox: piecesPerBox,
-          boxesInStock: selectedProduct.boxes_in_stock
-        })
+        const newQuantity = Math.max(0, selectedProduct.quantity - piecesToDeduct)
         
-        let newBoxQuantity = selectedProduct.boxes_in_stock
-        let newOpenBoxPieces = currentRemaining
-        let piecesToDeduct = quantity
-        
-        // Step 1: First use open_box_pieces
-        if (piecesToDeduct <= newOpenBoxPieces) {
-          // All pieces can come from open box
-          newOpenBoxPieces -= piecesToDeduct
-          console.log('[STOCK-OUT] Using open box pieces only:', {
-            newOpenBoxPieces: newOpenBoxPieces,
-            newBoxQuantity: newBoxQuantity
-          })
-        } else {
-          // Need to open new boxes
-          piecesToDeduct -= newOpenBoxPieces  // Use all open pieces first
-          newOpenBoxPieces = 0  // Open box is now empty
-          
-          // Step 2: Open new boxes as needed
-          const boxesToOpen = Math.ceil(piecesToDeduct / piecesPerBox)
-          newBoxQuantity -= boxesToOpen
-          
-          // Step 3: Calculate remaining pieces in the last opened box
-          const totalPiecesFromNewBoxes = boxesToOpen * piecesPerBox
-          newOpenBoxPieces = totalPiecesFromNewBoxes - piecesToDeduct
-          
-          console.log('[STOCK-OUT] Opened new boxes:', {
-            boxesToOpen: boxesToOpen,
-            piecesToDeductFromNewBoxes: piecesToDeduct,
-            newOpenBoxPieces: newOpenBoxPieces,
-            newBoxQuantity: newBoxQuantity
-          })
-        }
-        
-        // Update product stock
         const { error: stockError } = await supabase
           .from("products")
-          .update({ 
-            boxes_in_stock: Math.max(0, newBoxQuantity),
-            open_box_pieces: Math.max(0, newOpenBoxPieces)
-          })
+          .update({ quantity: newQuantity })
           .eq("id", formData.product_id)
         
         if (stockError) {
           console.error('[STOCK-OUT] Stock update error:', stockError)
-          throw stockError
-        }
-        
-        console.log('[STOCK-OUT] Stock updated successfully')
-      } else if (selectedProduct?.unit_type === "box" && formData.unit_sold === "box") {
-        // Selling whole boxes (WHOLESALE MODE)
-        const newBoxQuantity = Math.max(0, selectedProduct.boxes_in_stock - quantity)
-        
-        const { error: stockError } = await supabase
-          .from("products")
-          .update({ 
-            boxes_in_stock: newBoxQuantity
-          })
-          .eq("id", formData.product_id)
-        
-        if (stockError) {
-          console.error('[STOCK-OUT] Box stock update error:', stockError)
-          throw stockError
-        }
-      } else {
-        // Simple stock update for regular products
-        const newQuantity = Math.max(0, (selectedProduct?.boxes_in_stock ?? 0) - quantity)
-        
-        const { error: stockError } = await supabase
-          .from("products")
-          .update({ boxes_in_stock: newQuantity })
-          .eq("id", formData.product_id)
-        
-        if (stockError) {
-          console.error('[STOCK-OUT] Simple stock update error:', stockError)
           throw stockError
         }
       }
@@ -290,7 +219,10 @@ export function StockOutForm({ products }: StockOutFormProps) {
         customer_name: "",
         notes: "",
       })
-      router.refresh()
+      
+      // Call success callback to refresh parent components
+      onTransactionSuccess?.()
+      
       setTimeout(() => setSuccess(false), 3000)
     } catch (err) {
       setError("An unexpected error occurred")
@@ -394,12 +326,15 @@ export function StockOutForm({ products }: StockOutFormProps) {
                                   {product.boxes_in_stock} boxes
                                 </Badge>
                                 <p className="text-xs text-muted-foreground mt-1">
-                                  {totalPieces} pieces total
+                                  + {product.remaining_pieces || 0} pieces
+                                </p>
+                                <p className="text-xs text-muted-foreground font-medium">
+                                  Total: {product.quantity} pieces
                                 </p>
                               </div>
                             ) : (
                               <Badge variant={totalPieces <= product.min_stock_level ? "destructive" : "secondary"}>
-                                {totalPieces} in stock
+                                {product.quantity} in stock
                               </Badge>
                             )}
                           </div>

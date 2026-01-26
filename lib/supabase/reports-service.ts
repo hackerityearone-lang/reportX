@@ -58,11 +58,11 @@ export const reportsService = {
     const start = new Date(date); start.setHours(0,0,0,0)
     const end = new Date(date); end.setHours(23,59,59,999)
 
-    // Build transactions query - use correct filter
+    // Build transactions query - use correct column name
     let txQuery = supabase
       .from("stock_transactions")
-      .select("payment_type, total_amount, quantity, transaction_type")
-      .eq("transaction_type", "OUT")
+      .select("payment_type, total_amount, quantity, type")
+      .eq("type", "OUT")
       .gte("created_at", start.toISOString())
       .lte("created_at", end.toISOString())
     
@@ -136,7 +136,7 @@ export const reportsService = {
     let txQuery = supabase
       .from("stock_transactions")
       .select("created_at, payment_type, total_amount, quantity")
-      .eq("transaction_type", "OUT")
+      .eq("type", "OUT")
       .gte("created_at", startOfWeek.toISOString())
       .lte("created_at", endOfWeek.toISOString())
       .order("created_at")
@@ -225,7 +225,7 @@ export const reportsService = {
     let txQuery = supabase
       .from("stock_transactions")
       .select("created_at, payment_type, total_amount, quantity")
-      .eq("transaction_type", "OUT")
+      .eq("type", "OUT")
       .gte("created_at", startOfMonth.toISOString())
       .lte("created_at", endOfMonth.toISOString())
       .order("created_at")
@@ -344,7 +344,7 @@ export const reportsService = {
         *,
         customers(id, name, phone, tin_number)
       `)
-      .eq("transaction_type", "OUT")
+      .eq("type", "OUT")
       .gte("created_at", start.toISOString())
       .lte("created_at", end.toISOString())
       .order('created_at', { ascending: false })
@@ -406,11 +406,11 @@ export const reportsService = {
     // 2. Fetch Stock In
     let additionsQuery = supabase
       .from("stock_transactions")
-      .select(`id, created_at, quantity, total_amount, products!inner(id, name)`)
-      .eq("transaction_type", "IN")
-      .neq("products.quantity", null)
+      .select(`id, created_at, quantity, total_amount, product_id, products!inner(id, name)`)
+      .eq("type", "IN")
       .gte("created_at", start.toISOString())
       .lte("created_at", end.toISOString())
+      .order('created_at', { ascending: false })
     
     // Filter logic
     if (managerId) {
@@ -421,8 +421,23 @@ export const reportsService = {
     
     const { data: additions } = await additionsQuery
 
-    // Remove the problematic products query entirely
-    const lowStock: any[] = []
+    // 3. Fetch Low Stock Products
+    let lowStockQuery = supabase
+      .from("products")
+      .select("id, name, quantity, min_stock_level")
+      .eq("is_archived", false)
+    
+    // Filter logic
+    if (managerId) {
+      lowStockQuery = lowStockQuery.eq("user_id", managerId)
+    } else if (userRole !== 'BOSS') {
+      lowStockQuery = lowStockQuery.eq("user_id", user.id)
+    }
+    
+    const { data: allProducts } = await lowStockQuery
+    const lowStock = (allProducts || []).filter(p => 
+      (p.quantity || 0) <= (p.min_stock_level || 10)
+    )
 
     return { 
       sales: salesWithCreditStatus, 
@@ -441,11 +456,11 @@ export const reportsService = {
     const endOfDay = new Date()
     endOfDay.setHours(23, 59, 59, 999)
 
-    // Get today's transactions
+    // Get today's transactions - use correct column name
     let todayTxQuery = supabase
       .from("stock_transactions")
       .select("payment_type, total_amount, quantity")
-      .eq("transaction_type", "OUT")
+      .eq("type", "OUT")
       .gte("created_at", today.toISOString())
       .lte("created_at", endOfDay.toISOString())
     
@@ -455,19 +470,22 @@ export const reportsService = {
     
     const { data: todayTxs } = await todayTxQuery
 
-    let today_cash = 0, today_credit = 0, today_profit = 0, todayUnits = 0
+    let today_cash = 0, today_credit = 0, today_profit = 0
     todayTxs?.forEach(tx => {
-      todayUnits += (tx.quantity || 0)
-      today_profit += ((tx.total_amount || 0) * 0.1)
-      if (tx.payment_type === "CASH") today_cash += (tx.total_amount || 0)
-      else today_credit += (tx.total_amount || 0)
+      const amount = tx.total_amount || 0
+      today_profit += (amount * 0.1) // Estimate 10% profit margin
+      if (tx.payment_type === "CASH") {
+        today_cash += amount
+      } else {
+        today_credit += amount
+      }
     })
 
     // Get total customers
     let customersQuery = supabase
       .from("customers")
       .select("*", { count: "exact", head: true })
-      .neq("id", null)
+      .eq("is_archived", false)
     
     if (userRole !== 'BOSS') {
       customersQuery = customersQuery.eq("user_id", user.id)
@@ -489,11 +507,11 @@ export const reportsService = {
     const { data: credits } = await creditsQuery
     const pending_credit = credits?.reduce((sum, c) => sum + (c.amount_owed - c.amount_paid), 0) || 0
 
-    // Get low stock count - use basic fields only
+    // Get low stock count - use correct column names
     let productsQuery = supabase
       .from("products")
-      .select("quantity, minimum_stock_level")
-      .neq("quantity", null)
+      .select("quantity, min_stock_level")
+      .eq("is_archived", false)
     
     if (userRole !== 'BOSS') {
       productsQuery = productsQuery.eq("user_id", user.id)
@@ -501,7 +519,7 @@ export const reportsService = {
     
     const { data: products } = await productsQuery
     const low_stock_products = products?.filter(p => {
-      return (p.quantity || 0) <= (p.minimum_stock_level || 10)
+      return (p.quantity || 0) <= (p.min_stock_level || 10)
     }).length || 0
 
     return {

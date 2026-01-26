@@ -195,7 +195,7 @@ export default function StockOutPage() {
             </Card>
           ) : (
             <RecentStockOut 
-              transactions={transactions.slice(0, 10)} 
+              transactions={transactions} 
               onTransactionUpdated={loadData}
             />
           )}

@@ -53,7 +53,7 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
         selling_price_per_piece: (product.selling_price_per_piece || 0).toString(),
         pieces_per_box: (product.pieces_per_box || "").toString(),
         allow_retail_sales: product.allow_retail_sales ?? true,
-        remaining_pieces: (product.open_box_pieces || 0).toString(),
+        remaining_pieces: (product.remaining_pieces || 0).toString(),
         image_url: product.image_url || "",
       })
     }
@@ -77,7 +77,7 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
     const updateData = {
       name: formData.name.trim(),
       brand: formData.brand.trim(),
-      boxes_in_stock: Number.parseInt(formData.boxes_in_stock) || 0,
+      quantity: (Number.parseInt(formData.boxes_in_stock) || 0) * (Number.parseInt(formData.pieces_per_box) || 1) + (Number.parseInt(formData.remaining_pieces) || 0),
       min_stock_level: Number.parseInt(formData.min_stock_level) || 10,
       buy_price_per_box: Number.parseFloat(formData.buy_price_per_box) || 0,
       selling_price_per_box: Number.parseFloat(formData.selling_price_per_box) || 0,
@@ -85,7 +85,6 @@ export function EditProductDialog({ product, open, onOpenChange }: EditProductDi
       selling_price_per_piece: Number.parseFloat(formData.selling_price_per_piece) || 0,
       pieces_per_box: Number.parseInt(formData.pieces_per_box) || null,
       allow_retail_sales: formData.allow_retail_sales,
-      remaining_pieces: Number.parseInt(formData.remaining_pieces) || 0,
       image_url: formData.image_url.trim() || null,
       updated_at: new Date().toISOString(),
     }

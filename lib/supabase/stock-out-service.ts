@@ -71,7 +71,7 @@ export async function processStockOut(data: StockOutData) {
     // Process each item with new stock logic
     for (const item of data.items) {
       const product = products.find(p => p.id === item.product_id)!
-      
+
       // Insert transaction item
       const { error: itemError } = await supabase
         .from('stock_out_items')
@@ -96,22 +96,22 @@ export async function processStockOut(data: StockOutData) {
       } else {
         // RETAIL: Deduct pieces with box opening logic
         let piecesToDeduct = item.quantity
-        
+
         if (newOpenBoxPieces >= piecesToDeduct) {
           // Case A: Enough open pieces
           newOpenBoxPieces -= piecesToDeduct
         } else {
           // Case B: Not enough open pieces
           const remaining = piecesToDeduct - newOpenBoxPieces
-          
+
           // Use remaining open pieces
           newOpenBoxPieces = 0
-          
+
           // Open ONE new box
           if (newBoxesInStock > 0) {
             newBoxesInStock -= 1
             newOpenBoxPieces = product.pieces_per_box
-            
+
             // Deduct remaining pieces
             newOpenBoxPieces -= remaining
           } else {
@@ -153,7 +153,7 @@ export const stockOutService = {
       `)
       .eq('transaction_type', 'OUT')
       .order('created_at', { ascending: false })
-    
+
     if (error) throw error
     return data || []
   },
@@ -198,10 +198,10 @@ export const stockOutService = {
     try {
       // Generate invoice number
       const invoiceNumber = `INV-${Date.now()}`
-      
+
       // Calculate total amount
       const totalAmount = data.items.reduce((sum, item) => sum + (item.quantity * item.selling_price), 0)
-      
+
       // Create customer if needed
       let customerId = data.customer_id
       if (!customerId && data.customer && data.customer.name) {
@@ -214,11 +214,11 @@ export const stockOutService = {
           })
           .select()
           .single()
-        
+
         if (customerError) throw customerError
         customerId = newCustomer.id
       }
-      
+
       // Create transaction using stock_transactions table
       const { data: transaction, error: transactionError } = await supabase
         .from('stock_transactions')
@@ -236,55 +236,53 @@ export const stockOutService = {
         })
         .select()
         .single()
-      
+
       if (transactionError) throw transactionError
-      
+
       // Create transaction items and update stock
       for (const item of data.items) {
-        // Insert transaction item
+        // Get product info from database
+        const { data: productInfo, error: productError } = await supabase
+          .from('products')
+          .select('*')
+          .eq('id', item.product_id)
+          .single()
+
+        if (productError) throw productError
+
+        // Calculate pieces for transaction record
+        const piecesInTransaction = item.unit_type === 'boxes' 
+          ? item.quantity * (productInfo.pieces_per_box || 1)
+          : item.quantity
+
+        // Insert transaction item (record actual pieces sold)
         const { error: itemError } = await supabase
           .from('stock_out_items')
           .insert({
             transaction_id: transaction.id,
             product_id: item.product_id,
-            quantity: item.quantity,
+            quantity: piecesInTransaction, // Always store in pieces
             selling_price: item.selling_price,
             buying_price: item.buying_price
           })
-        
+
         if (itemError) throw itemError
+
+        // Update product stock using quantity as source of truth
+        const piecesToDeduct = item.unit_type === 'boxes' 
+          ? item.quantity * (productInfo.pieces_per_box || 1)
+          : item.quantity
         
-        // Get product for stock update
-        const { data: product, error: productError } = await supabase
-          .from('products')
-          .select('*')
-          .eq('id', item.product_id)
-          .single()
-        
-        if (productError) throw productError
-        
-        // Update product stock using original schema
-        let newQuantity = product.quantity
-        
-        if (item.unit_type === 'boxes') {
-          // WHOLESALE: Deduct full boxes worth of pieces
-          const piecesToDeduct = item.quantity * (product.pieces_per_box || 1)
-          newQuantity -= piecesToDeduct
-        } else {
-          // RETAIL: Deduct individual pieces
-          newQuantity -= item.quantity
-        }
+        const newQuantity = Math.max(0, productInfo.quantity - piecesToDeduct)
         
         const { error: updateError } = await supabase
           .from('products')
-          .update({
-            quantity: newQuantity
-          })
+          .update({ quantity: newQuantity })
           .eq('id', item.product_id)
-        
+
         if (updateError) throw updateError
       }
-      
+
       // Create credit record if payment type is CREDIT
       if (data.payment_type === 'CREDIT' && customerId) {
         const { error: creditError } = await supabase
@@ -299,10 +297,10 @@ export const stockOutService = {
             is_active: true,
             created_at: new Date().toISOString()
           })
-        
+
         if (creditError) throw creditError
       }
-      
+
       return transaction
     } catch (error) {
       console.error('Advanced stock out error:', error)
@@ -320,9 +318,9 @@ export const stockOutService = {
         `)
         .eq('id', transactionId)
         .single()
-      
+
       if (transactionError) throw transactionError
-      
+
       // Restore stock for each item
       for (const item of transaction.stock_out_items || []) {
         const { data: product, error: productError } = await supabase
@@ -330,52 +328,39 @@ export const stockOutService = {
           .select('*')
           .eq('id', item.product_id)
           .single()
-        
+
         if (productError) continue // Skip if product not found
-        
-        let newBoxesInStock = product.boxes_in_stock
-        let newRemainingPieces = product.remaining_pieces || 0
-        
-        // Restore stock (reverse the deduction logic)
-        newRemainingPieces += item.quantity
-        
-        // Convert excess pieces to boxes if needed
-        const piecesPerBox = product.pieces_per_box || 1
-        if (newRemainingPieces >= piecesPerBox) {
-          const boxesToAdd = Math.floor(newRemainingPieces / piecesPerBox)
-          newBoxesInStock += boxesToAdd
-          newRemainingPieces = newRemainingPieces % piecesPerBox
-        }
-        
+
+        // Restore stock by adding back the pieces that were sold
+        const piecesToRestore = item.quantity // This is already in pieces from the transaction
+        const newQuantity = product.quantity + piecesToRestore
+
         await supabase
           .from('products')
-          .update({
-            boxes_in_stock: newBoxesInStock,
-            remaining_pieces: newRemainingPieces
-          })
+          .update({ quantity: newQuantity })
           .eq('id', item.product_id)
       }
-      
+
       // Delete related credit if exists
       await supabase
         .from('credits')
         .delete()
         .eq('transaction_id', transactionId)
-      
+
       // Delete transaction items
       await supabase
         .from('stock_out_items')
         .delete()
         .eq('transaction_id', transactionId)
-      
+
       // Delete transaction
       const { error: deleteError } = await supabase
         .from('stock_transactions')
         .delete()
         .eq('id', transactionId)
-      
+
       if (deleteError) throw deleteError
-      
+
       return { success: true }
     } catch (error) {
       console.error('Delete transaction error:', error)
